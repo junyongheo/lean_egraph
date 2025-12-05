@@ -1,0 +1,14 @@
+name = "leanegraph"
+version = "0.1.0"
+defaultTargets = ["leanegraph"]
+
+[[require]]
+name = "batteries"
+scope = "leanprover-community"
+
+[[lean_lib]]
+name = "Leanegraph"
+
+[[lean_exe]]
+name = "leanegraph"
+root = "Main"
