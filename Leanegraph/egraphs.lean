@@ -1,10 +1,9 @@
 import Batteries.Data.UnionFind
-import Lean.Data.AssocList
 
 /-
   Implementations of E-Node, E-Class, E-Graph and functions that operate on them
 -/
-variable {α : Type _} [BEq α] [DecidableEq α] [Hashable α]
+variable {α : Type _} [DecidableEq α] [BEq α][Hashable α]
 
 /-
   A Nat is used instead of Fin n for non-dependent typing reasons
@@ -14,7 +13,7 @@ abbrev EClassId := Nat
 structure ENode (α : Type _ ) where
   head : α
   args : List EClassId
-deriving DecidableEq, Hashable,  Repr
+deriving Hashable, DecidableEq, BEq, Repr
 
 /-
   EClasses hold a list of equivalent nodes and a list of parents
@@ -61,11 +60,13 @@ def EClass.merge (ec₁ ec₂ : EClass α) : EClass α :=
     E-class Map M - Map of *e-class ids to e-classes*
     Hashcons H - Map of *e-nodes to e-class ids*
 -/
-structure EGraph (α : Type _) [DecidableEq α] [Hashable α] where
+structure EGraph (α : Type _) [DecidableEq α][BEq α] [Hashable α] where
   uf    : Batteries.UnionFind
   ecmap : Std.HashMap EClassId (EClass α)
   hcons : Std.HashMap (ENode α) EClassId
   dirty : List EClassId
+  -- For performance reasons, add a mapping of all terms by operator
+  opmap : Std.HashMap α (List EClassId)
 
 
 -- Is there a benefit to using the λ notation I wonder... readability? versatility?
@@ -78,10 +79,11 @@ def EGraph.size (eg : EGraph α) : Nat :=
 -/
 def EGraph.empty : EGraph α :=
   {
-    uf    := Batteries.UnionFind.empty,
-    ecmap := Std.HashMap.emptyWithCapacity,
+    uf    := Batteries.UnionFind.empty
+    ecmap := Std.HashMap.emptyWithCapacity
     hcons := Std.HashMap.emptyWithCapacity
     dirty := []
+    opmap := Std.HashMap.emptyWithCapacity
   }
 
 
@@ -89,7 +91,7 @@ def EGraph.empty : EGraph α :=
 /-
   State monad for e-graph
 -/
-abbrev EGraphM α [DecidableEq α] [Hashable α] := StateM (EGraph α)
+abbrev EGraphM α [DecidableEq α] [BEq α] [Hashable α] := StateM (EGraph α)
 
 /-
 -- I think a runtime panic is better since we know something is wrong instead
@@ -197,10 +199,21 @@ def push (en : ENode α) : EGraphM α (EClassId) := do
 
     let ecmap'' := ecmap'.insert curSize (EClass.fromNode en)
     let hcons' := eg.hcons.insert en curSize
+
+    -- Operator Map
+    -- TODO: Lean Docs say:
+    -- The notation m[a]! is preferred over calling this function directly.
+    -- over get!
+    -- In any case, use getD to specify a default
+    -- TODO: I think we can use getD to change some of the other code
+
+    let curlist:= eg.opmap.getD en.head []
+    let opmap' := eg.opmap.insert en.head (curSize :: curlist)
     set { eg with
             uf := uf',
             ecmap := ecmap'',
-            hcons := hcons'
+            hcons := hcons',
+            opmap := opmap'
         }
     return curSize
 

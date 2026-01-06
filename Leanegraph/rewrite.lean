@@ -1,4 +1,4 @@
-import Leanegraph.egraph
+import Leanegraph.egraphs
 
 variable {α : Type _} [BEq α] [DecidableEq α] [Hashable α]
 
@@ -11,7 +11,7 @@ variable {α : Type _} [BEq α] [DecidableEq α] [Hashable α]
       | VariablePattern String
   ```
   and philip zucker's julia
-  ```
+  ```3
     struct PatVar
       id::Symbol
     end
@@ -23,14 +23,195 @@ variable {α : Type _} [BEq α] [DecidableEq α] [Hashable α]
 
     Pattern = Union{PatTerm,PatVar}
   ```
-  I think this should work...
 -/
 inductive Pattern (α : Type _) where
-| PatTerm : (head : α) → (args : Pattern α) → Pattern α
-| PatVar : α → Pattern α
-deriving Repr
+| PatTerm : (head : α) → (args : List <| Pattern α) → Pattern α
+| PatVar : String → Pattern α
+deriving Repr, BEq, Hashable --why decideableeq not work, look into
+
+-- https://proofassistants.stackexchange.com/questions/2444/does-lean-4-have-built-in-dictionary-types
+abbrev Dict α [BEq α] [DecidableEq α] [Hashable α] := Std.HashMap /-(Pattern α)-/ String EClassId
+
+-- https://unreasonableeffectiveness.com/learning-lean-4-as-a-programming-language-4-proofs/
+-- https://unreasonableeffectiveness.com/learning-lean-4-as-a-programming-language-2-infinite-lists/
+-- Some things on laziness and lists...
+
+structure Rule (α : Type _) where
+  lhs : Pattern α
+  rhs : Pattern α
+deriving Repr -- I don't think other derivations required
+
+-- TODO: Easier interface for defining patterns...
+-- Like the ?x + ?y syntax used by egg
+
+
+-- ematch and ematchlist call each other, need mutual declaration
+mutual
+
+def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : EGraphM α <| List <| Dict α := do
+  match pl, idl with
+  | [], [] => return [d]
+  | p :: ps, id :: ids =>
+    let canonId ← lookupCanonicalEClassId id
+    let headMatches ← ematch p canonId d
+    let allMatches ← headMatches.flatMapM (λ d' =>
+      ematchlist ps ids d'
+    )
+    return allMatches
+  | _, _ => return []
+
+def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α <| List <| Dict α := do
+  let canonId ← lookupCanonicalEClassId id
+  match p with
+  | Pattern.PatVar var =>
+    match d.get? var with
+    -- do key and id hold canonical ids? TODO: think...
+    | some key => if key = canonId then return [d] else return []
+    | none     => return [d.insert var id]
+  | Pattern.PatTerm phead pargs =>
+    let eg ← get
+    match eg.ecmap.get? canonId with
+    | none      => return []
+    | some ecls =>
+      let matchingNodes := ecls.nodes.filter (λ n => n.head == phead)
+      let nestedMatches ← matchingNodes.flatMapM (λ enode =>
+        ematchlist pargs enode.args d
+      )
+      return nestedMatches
+
+end
+
+-- TODO: this one doesn't update the values correctly
+-- Seems to be a monad vs functional difference
+-- Study it to understand better
+/-
+mutual
+def ematchlist (eg : EGraph α) (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : List <| Dict α :=
+  match pl with
+  | [] => [d]
+  | p :: ps =>
+    ematch eg p idl.head! d |>.flatMap (λ d' =>
+      ematchlist eg ps idl.tail! d'
+    )
+
+
+def ematch (eg : EGraph α) (p : Pattern α) (id : EClassId) (d : Dict α) : (List <| Dict α) :=
+  match p with
+  | Pattern.PatVar var =>
+    match d.get? var with
+    -- do key and id hold canonical ids? TODO: think...
+    | some key => if key = id then [d] else []
+    | none     => [d.insert var id]
+  | Pattern.PatTerm phead pargs =>
+    match eg.ecmap.get? id with
+    | none      => []
+    | some ecls =>
+      ecls.nodes.flatMap (λ enode =>
+        if enode.head ≠ phead then
+          []
+        else
+          ematchlist eg pargs enode.args d
+      )
+
+end
+-/
+
+def instantiate (p : Pattern α) (d : Dict α) : EGraphM α <| EClassId := do
+  match p with
+  | Pattern.PatVar var => return d.get! var
+  | Pattern.PatTerm phead pargs =>
+    -- push ⟨phead, List.map (λ a => instantiate a d) pargs⟩ -- maybe do this in multiple steps -- and in a monadmap
+    let newArgs ← pargs.mapM (λ a => instantiate a d)
+    push ⟨phead, newArgs⟩
+    -- push ⟨phead, ← pargs.mapM (λ a ↦ instantiate a d)⟩ -- can be done in one step like this
+    -- still keep the two line definition for readability
 
 
 
-def matchPattern (en : ENode α) (p : Pattern α) : Std.HashMap (ENode α) (Pattern α) :=
-  Std.HashMap.emptyWithCapacity |>.insert en p
+def rewrite (r : Rule α) : EGraphM α <| Unit := do
+  let eg ← get
+  -- Get all matches
+  let pMatches ← eg.ecmap.toList.flatMapM (λ (id, cls) =>
+      ematch r.lhs id Std.HashMap.emptyWithCapacity)
+  -- Instantiate, then union
+  pMatches.forM (λ sub => do
+    let lhsId ← instantiate r.lhs sub
+    let rhsId ← instantiate r.rhs sub
+    let _     ← union lhsId rhsId
+    )
+
+  rebuild
+
+/-
+  function instantiate(e::EGraph, p::PatTerm , sub)
+    push!( e, Term(p.head, [ instantiate(e,a,sub) for a in p.args ] ))
+end
+-/
+
+/-
+-- Oh great more monads
+def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α (List <| Dict α) := do
+  let eg ← get
+  match p with
+  | Pattern.PatVar var =>
+    match d.get? var with
+    -- do key and id hold canonical ids? TODO: think...
+    | some key => if key = id then return [d] else return []
+    | none     => return [d.insert var id]
+  | Pattern.PatTerm phead pargs =>
+    sorry
+end
+-/
+
+
+
+/-
+-- So apparently this is not part of the implementation O_o
+-- It was a good thought exercise...
+
+-- We want an option monad for option chaining reasons
+-- Fold over a list of (key × val), I don't understand philip zucker's code tbh so I just translated it for now
+-- TODO: read and understand what it says
+-- We need to split the code into two parts, this does the inner loop (from for (k,v) in d)
+def mergeConsistentHelper (carryOver ds : Dict α) : Option <| Dict α :=
+  ds.toList.foldlM (init := carryOver)
+  (λ hmp (k,v) =>
+    match hmp.get? k with
+    | some exs => if (exs = v) then some hmp else none
+    | none     => some (hmp.insert k v)
+  )
+
+-- we need to ehm.. I think the code needs to be translated a bit
+-- get the base case and proceed from there, otherwise termination is iffy?
+def mergeConsistent (ds : List <| Option <| Dict α) : Option <| Dict α :=
+
+  sorry
+
+-- Can termination of this be checked?
+def matchTo (en : ENode α) (p : Pattern α) : Option <| Dict α :=
+  match p with
+  | Pattern.PatVar var => some <| Std.HashMap.emptyWithCapacity |>.insert p en
+  | Pattern.PatTerm phead pargs =>
+    if phead ≠ en.head ∨ pargs.length ≠ en.args.length
+      then none
+    else
+      List.zip en.args pargs
+      -- mergeConsistent <| List.map matchTo
+      sorry
+    sorry
+
+def matchRecursor (tup : (ENode α × Pattern α)) : Option <| Dict α :=
+  match tup.snd with
+  | Pattern.PatVar var => some <| Std.HashMap.emptyWithCapacity |>.insert tup.snd tup.fst
+  | Pattern.PatTerm phead pargs =>
+    if phead ≠ tup.fst.head ∨ pargs.length ≠ tup.fst.args.length
+      then none
+    else
+      mergeConsistent <| List.map matchRecursor
+
+#eval List.zip [1,2,3] ['a','b','c']
+
+
+
+  --Std.HashMap.emptyWithCapacity |>.insert en p
+-/
