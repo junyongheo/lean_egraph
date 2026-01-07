@@ -5,6 +5,8 @@ import Batteries.Data.UnionFind
 -/
 variable {α : Type _} [DecidableEq α] [BEq α][Hashable α]
 
+namespace EGraph
+
 /-
   A Nat is used instead of Fin n for non-dependent typing reasons
 -/
@@ -377,4 +379,7 @@ partial def rebuild : EGraphM α (Unit) := do
   for item in repairList do
     repair item
 
-  rebuild
+  -- rebuild
+
+
+end EGraph

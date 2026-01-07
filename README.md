@@ -23,11 +23,11 @@ Simplifications
 1. Uses Lists instead of Array for easier implementation. Focusing initially on getting it running rather than performance
 
 TODO: 
-1. Figure out best namespace practice and put egraphs in separate namespace
+1. ~~Figure out best namespace practice and put egraphs in separate namespace~~
+5. Finish writing test set
 1. Organise code into different files
 2. Change the lists to array
 3. Minor changes and ideas marked with "TODO" in comments
 4. Cleanup code and comments to clarify decisions
-5. Cleanup test set
 6. Cleanup functions by extracting functions from blocks of code when possible
 6. Think of a less boring name than lean egraph

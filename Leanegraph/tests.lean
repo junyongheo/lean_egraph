@@ -10,6 +10,7 @@ variable {α : Type _} [DecidableEq α] [BEq α] [Hashable α]
   Tests for the EGraph implementation
 -/
 
+
 open EGraph
 
 /-
@@ -97,8 +98,10 @@ def runTest (test : EGraphGenericIO α <| Unit) (testName: String := ""): IO Uni
 /-
   Example tests and how to run them
   These tests are NOT generic and only work on the AddMul language
+  For any other languages, please write your own tests
+  Individual tests can be run using the #eval runTest {your_test_here} command
+  Tests can be ran in bulk by defining a list of tests and passing it to runAllTests (see below)
 -/
-
 
 -- Tests push operation.
 -- Expect: 3 classes with 1 term each
@@ -113,7 +116,7 @@ def testPushOperation : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testPushOperation
+#eval runTest testPushOperation "Push"
 
 -- Tests union operation.
 -- Expect: 2 classes, with 1 and 2 terms respectively.
@@ -135,4 +138,17 @@ def testUnionOperation : EGraphIO Unit := do
 
   IO.println s!"Variables {a} and {b} both in class {c1}"
 
-#eval runTest testUnionOperation
+#eval runTest testUnionOperation "Union"
+
+
+def listOfTests := [
+  testPushOperation,
+  testUnionOperation,
+]
+
+def runAllTests (allTests : List (EGraphIO Unit)) : IO Unit := do
+  for test in allTests do
+    runTest test
+    IO.println "======\nNEXT TEST\n======"
+
+#eval runAllTests listOfTests
