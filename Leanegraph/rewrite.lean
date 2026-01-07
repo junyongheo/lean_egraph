@@ -2,6 +2,8 @@ import Leanegraph.egraphs
 
 variable {α : Type _} [BEq α] [DecidableEq α] [Hashable α]
 
+namespace EGraph
+
 /-
   Define Pattern type
   Modelled after hegg (haskell)
@@ -23,6 +25,7 @@ variable {α : Type _} [BEq α] [DecidableEq α] [Hashable α]
 
     Pattern = Union{PatTerm,PatVar}
   ```
+  I think this should work...
 -/
 inductive Pattern (α : Type _) where
 | PatTerm : (head : α) → (args : List <| Pattern α) → Pattern α
@@ -41,13 +44,7 @@ structure Rule (α : Type _) where
   rhs : Pattern α
 deriving Repr -- I don't think other derivations required
 
--- TODO: Easier interface for defining patterns...
--- Like the ?x + ?y syntax used by egg
-
-
--- ematch and ematchlist call each other, need mutual declaration
 mutual
-
 def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : EGraphM α <| List <| Dict α := do
   match pl, idl with
   | [], [] => return [d]
@@ -59,6 +56,8 @@ def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : E
     )
     return allMatches
   | _, _ => return []
+
+
 
 def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α <| List <| Dict α := do
   let canonId ← lookupCanonicalEClassId id
@@ -81,9 +80,6 @@ def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α <| List <
 
 end
 
--- TODO: this one doesn't update the values correctly
--- Seems to be a monad vs functional difference
--- Study it to understand better
 /-
 mutual
 def ematchlist (eg : EGraph α) (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : List <| Dict α :=
@@ -130,10 +126,9 @@ def instantiate (p : Pattern α) (d : Dict α) : EGraphM α <| EClassId := do
 
 def rewrite (r : Rule α) : EGraphM α <| Unit := do
   let eg ← get
-  -- Get all matches
-  let pMatches ← eg.ecmap.toList.flatMapM (λ (id, cls) =>
+  let pMatches ← eg.ecmap.toList.flatMapM (λ (id, _) =>
       ematch r.lhs id Std.HashMap.emptyWithCapacity)
-  -- Instantiate, then union
+
   pMatches.forM (λ sub => do
     let lhsId ← instantiate r.lhs sub
     let rhsId ← instantiate r.rhs sub
@@ -141,6 +136,8 @@ def rewrite (r : Rule α) : EGraphM α <| Unit := do
     )
 
   rebuild
+
+end EGraph
 
 /-
   function instantiate(e::EGraph, p::PatTerm , sub)
