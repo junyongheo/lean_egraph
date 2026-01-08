@@ -176,6 +176,14 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α)) (en : ENode α) (ei
     | none     => ecmap'
   )
 
+  def canonicaliseParents (par: List (ENode α × EClassId)) :EGraphM α (List (ENode α × EClassId)) := do
+    let par' ← par.mapM (λ (en,id) => do
+      let en' ← canonicalise en
+      let id' ← lookupCanonicalEClassId id
+      return (en', id')
+    )
+    return par'.eraseDups
+
 -- NOT TRUE: I don't think a monad is necessary here, we can just return a × with EGraph and ID
 -- That is untrue!! Because of the previous wrappers I think we're stuck with a monad
 -- Ask: is it normal to have so many do blocks because everything is monadic
@@ -197,10 +205,10 @@ def push (en : ENode α) : EGraphM α (EClassId) := do
     let curSize := eg.size
     let uf' := eg.uf.push
 
-    let ecmap' := updateParents eg.ecmap en curSize
+    let ecmap' := updateParents eg.ecmap en' curSize
 
     let ecmap'' := ecmap'.insert curSize (EClass.fromNode en)
-    let hcons' := eg.hcons.insert en curSize
+    let hcons' := eg.hcons.insert en' curSize
 
     -- Operator Map
     -- TODO: Lean Docs say:
@@ -245,8 +253,12 @@ def union (id₁ id₂ : EClassId) : EGraphM α (EClassId) := do
     -- Update EClass, EClassMap and Hashcons with new UF canonies
     let fromId := if id₁' = leaderClassId then id₂' else id₁'
 
+
     -- merge std hashmap union
-    let leaderClass := EClass.merge (eg.ecmap.get! leaderClassId) (eg.ecmap.get! fromId)
+    -- also touch parents
+    let leaderClass'' := EClass.merge (eg.ecmap.get! leaderClassId) (eg.ecmap.get! fromId)
+    let leaderClass'   ← canonicaliseParents leaderClass''.parents
+    let leaderClass   := {leaderClass'' with parents := leaderClass'}
 
     -- Re-canonicalise my nodes
     let newHcons := eg.hcons.fold (init := eg.hcons) (λ hcons' en id =>
@@ -379,7 +391,7 @@ partial def rebuild : EGraphM α (Unit) := do
   for item in repairList do
     repair item
 
-  -- rebuild
+  rebuild
 
 
 end EGraph
