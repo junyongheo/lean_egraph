@@ -1,4 +1,4 @@
-import Leanegraph.egraphs
+import Leanegraph.core.egraphs
 
 variable {α : Type _} [BEq α] [DecidableEq α] [Hashable α]
 
