@@ -135,7 +135,7 @@ def rewrite (r : Rule α) : EGraphM α <| Unit := do
     let _     ← union lhsId rhsId
     )
 
-  rebuild
+  -- rebuild
 
 end EGraph
 

@@ -207,7 +207,7 @@ def push (en : ENode α) : EGraphM α (EClassId) := do
 
     let ecmap' := updateParents eg.ecmap en' curSize
 
-    let ecmap'' := ecmap'.insert curSize (EClass.fromNode en)
+    let ecmap'' := ecmap'.insert curSize (EClass.fromNode en')
     let hcons' := eg.hcons.insert en' curSize
 
     -- Operator Map
@@ -217,8 +217,8 @@ def push (en : ENode α) : EGraphM α (EClassId) := do
     -- In any case, use getD to specify a default
     -- TODO: I think we can use getD to change some of the other code
 
-    let curlist:= eg.opmap.getD en.head []
-    let opmap' := eg.opmap.insert en.head (curSize :: curlist)
+    let curlist:= eg.opmap.getD en'.head []
+    let opmap' := eg.opmap.insert en'.head (curSize :: curlist)
     set { eg with
             uf := uf',
             ecmap := ecmap'',

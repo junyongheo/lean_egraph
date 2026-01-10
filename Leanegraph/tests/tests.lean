@@ -1,4 +1,5 @@
 import Leanegraph.core.egraphs
+import Leanegraph.core.rewrite
 
 /-
   This file contains the helper functions and framework for running tests.
@@ -26,7 +27,7 @@ abbrev EGraphGenericIO := (λL [DecidableEq L][Hashable L][BEq L] ↦ StateT (EG
   ~~TODO: understand why IO can be passed as a state...~~
 -/
 inductive AddMul where
-| const : Nat → AddMul
+| lit : Nat → AddMul
 | var   : String → AddMul
 | add   : AddMul
 | mul   : AddMul
@@ -34,7 +35,7 @@ deriving DecidableEq, Hashable, BEq, Repr
 
 instance : ToString AddMul where
   toString
-  | .const n => s!"{n}"
+  | .lit n => s!"{n}"
   | .var s   => s
   | .add     => "+"
   | .mul     => "*"
@@ -88,14 +89,73 @@ def runLine (line : EGraphM α <| EClassId) : EGraphGenericIO α <| EClassId  :=
   set s'
   return res
 
+def runLineUnit (line : EGraphM α <| Unit) : EGraphGenericIO α <| Unit  := do
+  let s ← get
+  let (res, s') := line.run s
+  set s'
+  return
+
+/-
+-- Deprecated: pass rebuild to "runLineUnit <| rebuild"
 def runRebuild : EGraphGenericIO α <| Unit := do
   let s ← get
   let (res, s') := rebuild.run s
   set s'
   return res
+-/
 
 def runTest (test : EGraphGenericIO α <| Unit) (testName: String := ""): IO Unit := do
   let emptyGraph : EGraph α := EGraph.empty
   let _ ← test.run emptyGraph
   IO.println s!"Test {testName} Completed"
   IO.println "Test Completed"
+
+
+
+
+/-
+
+-/
+
+def runSchedule
+      {α : Type _} [DecidableEq α] [BEq α] [Hashable α]
+      (rules : List (Rule α))
+      (limit : Nat := 10)
+    :  EGraphGenericIO α <| Unit := do -- this is some ugly formatting
+  let mut i := 0
+  while i < limit do
+    let egStart ← get
+    let sizeStart := egStart.size
+
+    -- Apply all rules
+    for r in rules do
+      runLineUnit <| rewrite (α := α) (r := r)
+
+    let egEnd ← get
+    let sizeEnd := egEnd.size
+
+    if sizeStart == sizeEnd then
+      -- Fixed point reached (graph didn't grow)
+      -- Note: In a real system we'd check if *new classes* were added,
+      -- matching size is a rough proxy for "nothing happened".
+      return ()
+
+    i := i + 1
+
+/-
+  Note for horrendous type bug in case it happens again
+  '''
+  Application type mismatch: The argument
+  r
+  has type
+    Rule α
+  of sort `Type` but is expected to have type
+    Type
+  of sort `Type 1` in the application
+    rewrite r
+  '''
+
+  Was fixed by rewrite (α := α) (r := r)
+  or just
+  Because rewrite r makes lean think that i'm passing r as the type
+-/

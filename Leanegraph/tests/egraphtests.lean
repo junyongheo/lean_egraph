@@ -1,4 +1,4 @@
-import Leanegraph.egraphs
+import Leanegraph.core.egraphs
 import Leanegraph.tests.tests
 
 open EGraph
@@ -107,7 +107,7 @@ def testCongruence : EGraphIO Unit := do
 
   let _ ← runLine <| union a b
 
-  let _ ← runRebuild
+  let _ ← runLineUnit <| rebuild
 
   printEGraph
 
@@ -142,7 +142,7 @@ def testCongruencePropagation : EGraphIO Unit := do
 
   let _ ← runLine <| union a b
 
-  let _ ← runRebuild
+  let _ ← runLineUnit <| rebuild
 
   let _ ← runLine <| checkSameClass ga gb "Nested congruence"
 
@@ -163,7 +163,7 @@ def testUnionTransitive : EGraphIO Unit := do
   let _ ← runLine <| union a b
   let _ ← runLine <| union b c
 
-  let _ ← runRebuild
+  let _ ← runLineUnit <| rebuild
 
   let _ ← runLine <| checkSameClass a c "Union transitive"
 
