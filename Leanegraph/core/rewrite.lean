@@ -66,7 +66,7 @@ def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α <| List <
     match d.get? var with
     -- do key and id hold canonical ids? TODO: think...
     | some key => if key = canonId then return [d] else return []
-    | none     => return [d.insert var id]
+    | none     => return [d.insert var canonId]
   | Pattern.PatTerm phead pargs =>
     let eg ← get
     match eg.ecmap.get? canonId with

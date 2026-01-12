@@ -66,6 +66,10 @@ def ruleAddComm : Rule AddMul := {
 }
 -/
 
+
+/-
+  Examples of locally defined rules
+-/
 def ruleAddComm : Rule AddMul :=
   r* addP (?"a") (?"b") === addP (?"b") (?"a")
 
@@ -73,9 +77,9 @@ def ruleAddComm : Rule AddMul :=
 def ruleMulZero : Rule AddMul :=
   r* mulP (?"a") (litP 0) === (litP 0)
 
--- Using rule defined outside of local test
+-- Using such rule
 def testAddComm : EGraphIO Unit := do
-  IO.println "Add Commutative Test"
+  IO.println "\nTest: x + y → y + x"
 
   let x ← runLine <| push { head := .var "x", args := [] }
   let y ← runLine <| push { head := .var "y", args := [] }
@@ -89,9 +93,9 @@ def testAddComm : EGraphIO Unit := do
 
 #eval runTest testAddComm "AddComm"
 
--- Using rule defined locally inside test
+-- Defining rule inside test
 def testAddZero : EGraphIO Unit := do
-  IO.println "\n--- Test: Add Zero (x + 0 → x) ---"
+  IO.println "\nTest: x + 0 → x"
 
   let ruleAddZero : Rule AddMul :=
     r* addP (?"x") (litP 0) === (?"x")
@@ -113,12 +117,8 @@ def testAddZero : EGraphIO Unit := do
 
 #eval runTest testAddZero "Add Zero"
 
-
-
-
-
 def testDouble : EGraphIO Unit := do
-  IO.println "\n--- Test: Double (x + x → 2 * x) ---"
+  IO.println "\nTest: x + x → 2 * x"
 
   let ruleDouble : Rule AddMul := {
     lhs := addP (pVar "x") (pVar "x"),

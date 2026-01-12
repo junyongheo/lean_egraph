@@ -52,7 +52,8 @@ def EClass.fromNode {α : Type _} (en : ENode α) : EClass α:=
 def EClass.merge (ec₁ ec₂ : EClass α) : EClass α :=
   {
     -- TODO: think.. do we need to dedup here also?
-    nodes   := ec₁.nodes ++ ec₂.nodes
+    -- Just do it
+    nodes   := (ec₁.nodes ++ ec₂.nodes).eraseDups
     parents := ec₁.parents ++ ec₂.parents
   }
 
@@ -173,7 +174,7 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α)) (en : ENode α) (ei
       let parent := (en, eid)
       let ec     := {cls with parents := parent :: cls.parents}
       ecmap'.insert argId ec
-    | none     => ecmap'
+    | none     => panic! "updateParents none should not be reachable"-- ecmap' -- if not reachable better warning i guess
   )
 
   def canonicaliseParents (par: List (ENode α × EClassId)) :EGraphM α (List (ENode α × EClassId)) := do
@@ -197,11 +198,11 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α)) (en : ENode α) (ei
 def push (en : ENode α) : EGraphM α (EClassId) := do
   let en' ← canonicalise en
   let canonId ← findClass en'
-  let eg ← get
   match canonId with
   | some ecId =>
     return ecId
   | none =>
+    let eg ← get -- moved this here since eg is only used from here
     let curSize := eg.size
     let uf' := eg.uf.push
 
@@ -304,9 +305,9 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
   let newParents ← eClass.parents.foldlM (init := Std.HashMap.emptyWithCapacity) (λ parents' (p : (ENode α × EClassId)) => do
     let canon ← canonicalise p.1
     let canonId ← lookupCanonicalEClassId p.2
-    match parents'.get? p.1 with
+    match parents'.get? canon with
     | some eid =>
-      let _ ← union eid p.2
+      let _ ← union eid canonId
       return parents'
     | none    =>
       return parents'.insert canon canonId
