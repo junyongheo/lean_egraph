@@ -1,6 +1,7 @@
 import Leanegraph.core.egraphs
 import Leanegraph.core.rewrite
-import Leanegraph.tests.tests
+import Leanegraph.framework.helpers
+import Leanegraph.languages.addmul
 
 /-
   WIP
@@ -87,7 +88,7 @@ def testAddComm : EGraphIO Unit := do
 
   printEGraph
 
-  runSchedule (α := AddMul) [ruleAddComm]
+  eqSat (α := AddMul) [ruleAddComm]
 
   printEGraph
 
@@ -110,7 +111,7 @@ def testAddZero : EGraphIO Unit := do
 
   -- TODO: any difference here...?
   -- Guess: not
-  runSchedule (α := AddMul) [ruleAddZero]
+  eqSat (α := AddMul) [ruleAddZero]
   -- let _ ← runSchedule (α := AddMul) [ruleAddZero]
 
   printEGraph
@@ -133,7 +134,7 @@ def testDouble : EGraphIO Unit := do
 
   printEGraph
 
-  runSchedule [ruleDouble]
+  eqSat [ruleDouble]
 
   printEGraph
 
@@ -141,9 +142,40 @@ def testDouble : EGraphIO Unit := do
 
 /-
   Caught a non-canonical insertion bug
+  Idea:
+    let a, b
+    let a ≣ b
+    let a + b
+    Q: Will it rewrite?
 -/
+
+/-
+  Caught a non-canonical id insertion in ematch
+  Repair was using non-canonical values
+-/
+def testRewriteCatchEquivalence : EGraphIO Unit := do
+  IO.println "\nTest: Rewrite catches Equivalence?"
+
+  let ruleDouble : Rule AddMul :=
+    r* addP (?"x") (?"x") === mulP (litP 2) (?"x")
+
+  let a ← runLine <| push { head := .var "a", args := [] }
+  let b ← runLine <| push { head := .var "b", args := [] }
+  let _ ← runLine <| push { head := .add    , args := [a, b]}
+  printEGraph
+  let _ ← runLine <| union a b
+  printEGraph
+  -- let _ ← runLineUnit <| rebuild
+  printEGraph
+
+  eqSat [ruleDouble]
+  let _ ← runLineUnit <| rebuild
+  printEGraph
+
+#eval runTest testRewriteCatchEquivalence
+
 def testRewriteViaEquivalence : EGraphIO Unit := do
-  IO.println "\n--- Test: Rewrite via Equivalence ---"
+  IO.println "\nTest: Rewrite via Equivalence"
 
   let ruleDouble : Rule AddMul := {
     lhs := addP (pVar "x") (pVar "x"),
@@ -155,7 +187,7 @@ def testRewriteViaEquivalence : EGraphIO Unit := do
   -- a ≡ b
   printEGraph
   let _ ← runLine <| union a b
-  let _ ← runLineUnit <| rebuild
+  -- let _ ← runLineUnit <| rebuild
   printEGraph
   let two ← runLine <| push { head := .lit 2, args := [] }
 
@@ -163,7 +195,7 @@ def testRewriteViaEquivalence : EGraphIO Unit := do
   let _ ← runLine <| push { head := .mul, args := [two, b] }
 
   printEGraph
-  runSchedule [ruleDouble]
+  eqSat [ruleDouble]
   printEGraph
 
 #eval runTest testRewriteViaEquivalence

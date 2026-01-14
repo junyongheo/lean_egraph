@@ -64,7 +64,7 @@ def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α <| List <
   match p with
   | Pattern.PatVar var =>
     match d.get? var with
-    -- do key and id hold canonical ids? TODO: think...
+    -- do key and id hold canonical ids? TODO: think... -- answer was no
     | some key => if key = canonId then return [d] else return []
     | none     => return [d.insert var canonId]
   | Pattern.PatTerm phead pargs =>
@@ -126,17 +126,53 @@ def instantiate (p : Pattern α) (d : Dict α) : EGraphM α <| EClassId := do
 
 def rewrite (r : Rule α) : EGraphM α <| Unit := do
   let eg ← get
-  let pMatches ← eg.ecmap.toList.flatMapM (λ (id, _) =>
-      ematch r.lhs id Std.HashMap.emptyWithCapacity)
 
-  pMatches.forM (λ sub => do
-    let lhsId ← instantiate r.lhs sub
+  let searchOp : List EClassId :=
+    match r.lhs with
+    | Pattern.PatTerm head _ =>
+        eg.opmap.getD head []
+    | Pattern.PatVar _ =>
+        eg.ecmap.toList.map Prod.fst
+
+  let pMatches : List (EClassId × Dict α) ← searchOp.flatMapM (λ id => do
+      let subs ← (ematch r.lhs (← lookupCanonicalEClassId id) Std.HashMap.emptyWithCapacity)
+      return subs.map (λ sub => (id, sub)))
+
+  pMatches.forM (λ (lhsId, sub) => do
     let rhsId ← instantiate r.rhs sub
     let _     ← union lhsId rhsId
-    )
+  )
+
 
   -- rebuild
 
+/-
+def rewrite (r : Rule α) : EGraphM α Unit := do
+  let eg ← get
+
+  -- 1. Search Phase
+  let mut matche : List (EClassId × Std.HashMap String EClassId) := []
+  for (id, _) in eg.ecmap.toList do
+    let subs ← ematch r.lhs id Std.HashMap.emptyWithCapacity
+    for sub in subs do
+      matche := (id, sub) :: matche
+
+  if matche.isEmpty then
+    dbg_trace s!"  [No Matches Found]"
+    return ()
+
+  -- 2. Apply Phase
+  for (lhsId, sub) in matche do
+    dbg_trace s!"  [Match] Found LHS at Class {lhsId}"
+    let rhsId ← instantiate r.rhs sub
+    dbg_trace s!"  [Instantiate] RHS created/found at Class {rhsId}"
+
+    if lhsId != rhsId then
+      dbg_trace s!"  [Union] Requesting union {lhsId} ∪ {rhsId}..."
+      let _ ← union lhsId rhsId
+    else
+      dbg_trace s!"  [Skip] LHS and RHS are already same class ({lhsId})"
+-/
 end EGraph
 
 /-
