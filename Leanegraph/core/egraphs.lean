@@ -3,7 +3,7 @@ import Batteries.Data.UnionFind
 /-
   Implementations of E-Node, E-Class, E-Graph and functions that operate on them
 -/
-variable {α : Type _} [DecidableEq α] [BEq α][Hashable α]
+variable {α : Type _} [DecidableEq α] [BEq α][Hashable α] [Repr α]
 
 namespace EGraph
 
@@ -52,7 +52,8 @@ def EClass.fromNode {α : Type _} (en : ENode α) : EClass α:=
 def EClass.merge (ec₁ ec₂ : EClass α) : EClass α :=
   {
     -- TODO: think.. do we need to dedup here also?
-    nodes   := ec₁.nodes ++ ec₂.nodes
+    -- Just do it
+    nodes   := (ec₁.nodes ++ ec₂.nodes).eraseDups
     parents := ec₁.parents ++ ec₂.parents
   }
 
@@ -173,7 +174,7 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α)) (en : ENode α) (ei
       let parent := (en, eid)
       let ec     := {cls with parents := parent :: cls.parents}
       ecmap'.insert argId ec
-    | none     => ecmap'
+    | none     => panic! "updateParents none should not be reachable"-- ecmap' -- if not reachable better warning i guess
   )
 
   def canonicaliseParents (par: List (ENode α × EClassId)) :EGraphM α (List (ENode α × EClassId)) := do
@@ -197,11 +198,11 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α)) (en : ENode α) (ei
 def push (en : ENode α) : EGraphM α (EClassId) := do
   let en' ← canonicalise en
   let canonId ← findClass en'
-  let eg ← get
   match canonId with
   | some ecId =>
     return ecId
   | none =>
+    let eg ← get
     let curSize := eg.size
     let uf' := eg.uf.push
 
@@ -249,26 +250,21 @@ def union (id₁ id₂ : EClassId) : EGraphM α (EClassId) := do
   else
     -- Update union find
     let uf' := eg.uf.union! id₁' id₂'
-    let (uf'', leaderClassId) := uf'.find! id₁'
+    let (uf''', leaderClassId) := uf'.find! id₁'
+    -- more path compression........?
+    let (uf'',  _) := uf'''.find! id₂'
     -- Update EClass, EClassMap and Hashcons with new UF canonies
     let fromId := if id₁' = leaderClassId then id₂' else id₁'
 
 
     -- merge std hashmap union
-    -- also touch parents
-    let leaderClass'' := EClass.merge (eg.ecmap.get! leaderClassId) (eg.ecmap.get! fromId)
-    let leaderClass'   ← canonicaliseParents leaderClass''.parents
-    let leaderClass   := {leaderClass'' with parents := leaderClass'}
-
-    -- Re-canonicalise my nodes
-    let newHcons := eg.hcons.fold (init := eg.hcons) (λ hcons' en id =>
-                      if id = fromId then hcons'.insert en leaderClassId else hcons')
+    -- also touch parents -- not in egg style deferred
+    let leaderClass := EClass.merge (eg.ecmap.get! leaderClassId) (eg.ecmap.get! fromId)
 
     let _ ← set {
                   eg with
                   uf := uf''
                   ecmap := (Std.HashMap.insert (Std.HashMap.erase eg.ecmap fromId) leaderClassId leaderClass)
-                  hcons := newHcons
                   dirty := leaderClassId :: eg.dirty
                 }
     return leaderClassId
@@ -300,19 +296,44 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
   for (id₁, id₂) in collisions do
     let _ ← union id₁ id₂
 
+  let curNodes ← eClass.nodes.mapM canonicalise
+  let newNodes := curNodes.eraseDups
+
   -- Loop 2...
   let newParents ← eClass.parents.foldlM (init := Std.HashMap.emptyWithCapacity) (λ parents' (p : (ENode α × EClassId)) => do
     let canon ← canonicalise p.1
     let canonId ← lookupCanonicalEClassId p.2
-    match parents'.get? p.1 with
+    match parents'.get? canon with
     | some eid =>
-      let _ ← union eid p.2
+      let _ ← union eid canonId
       return parents'
     | none    =>
       return parents'.insert canon canonId
   )
   let eg' ← get
-  let _ ← set { eg' with ecmap := eg'.ecmap.insert id { eClass with parents := newParents.toList },  }
+  let _ ← set { eg' with ecmap := eg'.ecmap.insert id { eClass with parents := newParents.toList, nodes := newNodes },}
+
+
+/-
+  I don't think this can be written with proof of termination so we will have to mark partial
+  Rebuilds the egraph by iterating over the dirty list
+  Recursively calls rebuild until everything is empty
+-/
+
+partial def rebuild : EGraphM α (Unit) := do
+  let eg ← get
+  let todo := eg.dirty
+  if todo.isEmpty then return else
+
+  let _ ← set { eg with dirty := [] }
+  let repairList := (← todo.mapM lookupCanonicalEClassId).eraseDups
+
+  for item in repairList do
+    repair item
+
+  rebuild
+
+
 /-
 -- Cannot update hcons so union in loop 2 will not be updated, better to keep track of collisions
 def repair (id : EClassId) : EGraphM α (Unit) := do
@@ -372,26 +393,3 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
   let eg' ← get
   let _ ← set { eg' with ecmap := eg'.ecmap.insert id { eClass with parents := newParents.toList },  }
 -/
-
-
-
-/-
-  I don't think this can be written with proof of termination so we will have to mark partial
-  Rebuilds the egraph by iterating over the dirty list
-  Recursively calls rebuild until everything is empty
--/
-partial def rebuild : EGraphM α (Unit) := do
-  let eg ← get
-  let todo := eg.dirty
-  if todo.isEmpty then return else
-
-  let _ ← set { eg with dirty := [] }
-  let repairList := (← todo.mapM lookupCanonicalEClassId).eraseDups
-
-  for item in repairList do
-    repair item
-
-  rebuild
-
-
-end EGraph

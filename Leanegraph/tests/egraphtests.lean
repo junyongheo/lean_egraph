@@ -1,5 +1,6 @@
 import Leanegraph.core.egraphs
-import Leanegraph.tests.tests
+import Leanegraph.framework.helpers
+import Leanegraph.languages.addmul
 
 open EGraph
 

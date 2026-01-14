@@ -2,13 +2,11 @@ import Leanegraph.core.egraphs
 import Leanegraph.core.rewrite
 
 /-
-  This file contains the helper functions and framework for running tests.
-  This file does not contain any tests
-  Refer to egraphtests.lean and rewritetests.lean
+  This file contains the helper functions and framework for execution and running tests.
 -/
 
 -- Constraints on α
-variable {α : Type _} [DecidableEq α] [BEq α] [Hashable α]
+variable {α : Type _} [DecidableEq α] [BEq α] [Hashable α] [Repr α]
 
 open EGraph
 
@@ -18,35 +16,6 @@ open EGraph
 -/
 abbrev EGraphGenericIO := (λL [DecidableEq L][Hashable L][BEq L] ↦ StateT (EGraph L) IO)
 -- abbrev EGraphGenericIO:= (λc [DecidableEq c][Hashable c] ↦ ((λa ↦ StateT a IO) <| (λb [DecidableEq b][Hashable b] => EGraph b) <| c))
-
-
-/-
-  We define a language for basic tests on the e-graph.
-  We further define a ToString instance for better debug/print-ability.
-  The EGraph is bundled together with IO in a StateT
-  ~~TODO: understand why IO can be passed as a state...~~
--/
-inductive AddMul where
-| lit : Nat → AddMul
-| var   : String → AddMul
-| add   : AddMul
-| mul   : AddMul
-deriving DecidableEq, Hashable, BEq, Repr
-
-instance : ToString AddMul where
-  toString
-  | .lit n => s!"{n}"
-  | .var s   => s
-  | .add     => "+"
-  | .mul     => "*"
-
-
-
-/-
-  Pass your language like so
--/
-abbrev EGraphIO := EGraphGenericIO AddMul
-
 
 
 /-
@@ -72,7 +41,7 @@ def checkSameClass (id1 id2 : EClassId) (test : String := "") : EGraphM α <| EC
     return c1
 
 -- I'm not too worried about for loops anymore...
-def printEGraph : EGraphIO Unit := do
+def printEGraph : EGraphGenericIO α <| Unit := do
   let eg ← get
   IO.println "=== E-Graph State ==="
   IO.println s!"Size: {eg.uf.size}"
@@ -91,7 +60,7 @@ def runLine (line : EGraphM α <| EClassId) : EGraphGenericIO α <| EClassId  :=
 
 def runLineUnit (line : EGraphM α <| Unit) : EGraphGenericIO α <| Unit  := do
   let s ← get
-  let (res, s') := line.run s
+  let (_res, s') := line.run s
   set s'
   return
 
@@ -117,27 +86,27 @@ def runTest (test : EGraphGenericIO α <| Unit) (testName: String := ""): IO Uni
 
 -/
 
-def runSchedule
-      {α : Type _} [DecidableEq α] [BEq α] [Hashable α]
+def eqSat
+      {α : Type _} [DecidableEq α] [BEq α] [Hashable α] [Repr α]
       (rules : List (Rule α))
       (limit : Nat := 10)
-    :  EGraphGenericIO α <| Unit := do -- this is some ugly formatting
+    : EGraphGenericIO α Unit := do
   let mut i := 0
   while i < limit do
     let egStart ← get
-    let sizeStart := egStart.size
 
-    -- Apply all rules
+    let numClassesStart := egStart.uf.size
+    let numNodesStart   := egStart.size
+
     for r in rules do
       runLineUnit <| rewrite (α := α) (r := r)
 
-    let egEnd ← get
-    let sizeEnd := egEnd.size
+    runLineUnit <| rebuild
 
-    if sizeStart == sizeEnd then
-      -- Fixed point reached (graph didn't grow)
-      -- Note: In a real system we'd check if *new classes* were added,
-      -- matching size is a rough proxy for "nothing happened".
+    let egEnd ← get
+    let numClassesEnd := egEnd.uf.size
+    let numNodesEnd   := egEnd.size
+    if numClassesStart == numClassesEnd && numNodesStart == numNodesEnd then
       return ()
 
     i := i + 1

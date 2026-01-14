@@ -1,6 +1,7 @@
 import Leanegraph.core.egraphs
 import Leanegraph.core.rewrite
-import Leanegraph.tests.tests
+import Leanegraph.framework.helpers
+import Leanegraph.languages.addmul
 
 /-
   WIP
@@ -66,6 +67,10 @@ def ruleAddComm : Rule AddMul := {
 }
 -/
 
+
+/-
+  Examples of locally defined rules
+-/
 def ruleAddComm : Rule AddMul :=
   r* addP (?"a") (?"b") === addP (?"b") (?"a")
 
@@ -73,9 +78,9 @@ def ruleAddComm : Rule AddMul :=
 def ruleMulZero : Rule AddMul :=
   r* mulP (?"a") (litP 0) === (litP 0)
 
--- Using rule defined outside of local test
+-- Using such rule
 def testAddComm : EGraphIO Unit := do
-  IO.println "Add Commutative Test"
+  IO.println "\nTest: x + y → y + x"
 
   let x ← runLine <| push { head := .var "x", args := [] }
   let y ← runLine <| push { head := .var "y", args := [] }
@@ -83,15 +88,15 @@ def testAddComm : EGraphIO Unit := do
 
   printEGraph
 
-  runSchedule (α := AddMul) [ruleAddComm]
+  eqSat (α := AddMul) [ruleAddComm]
 
   printEGraph
 
 #eval runTest testAddComm "AddComm"
 
--- Using rule defined locally inside test
+-- Defining rule inside test
 def testAddZero : EGraphIO Unit := do
-  IO.println "\n--- Test: Add Zero (x + 0 → x) ---"
+  IO.println "\nTest: x + 0 → x"
 
   let ruleAddZero : Rule AddMul :=
     r* addP (?"x") (litP 0) === (?"x")
@@ -106,19 +111,15 @@ def testAddZero : EGraphIO Unit := do
 
   -- TODO: any difference here...?
   -- Guess: not
-  runSchedule (α := AddMul) [ruleAddZero]
+  eqSat (α := AddMul) [ruleAddZero]
   -- let _ ← runSchedule (α := AddMul) [ruleAddZero]
 
   printEGraph
 
 #eval runTest testAddZero "Add Zero"
 
-
-
-
-
 def testDouble : EGraphIO Unit := do
-  IO.println "\n--- Test: Double (x + x → 2 * x) ---"
+  IO.println "\nTest: x + x → 2 * x"
 
   let ruleDouble : Rule AddMul := {
     lhs := addP (pVar "x") (pVar "x"),
@@ -133,7 +134,7 @@ def testDouble : EGraphIO Unit := do
 
   printEGraph
 
-  runSchedule [ruleDouble]
+  eqSat [ruleDouble]
 
   printEGraph
 
@@ -141,9 +142,40 @@ def testDouble : EGraphIO Unit := do
 
 /-
   Caught a non-canonical insertion bug
+  Idea:
+    let a, b
+    let a ≣ b
+    let a + b
+    Q: Will it rewrite?
 -/
+
+/-
+  Caught a non-canonical id insertion in ematch
+  Repair was using non-canonical values
+-/
+def testRewriteCatchEquivalence : EGraphIO Unit := do
+  IO.println "\nTest: Rewrite catches Equivalence?"
+
+  let ruleDouble : Rule AddMul :=
+    r* addP (?"x") (?"x") === mulP (litP 2) (?"x")
+
+  let a ← runLine <| push { head := .var "a", args := [] }
+  let b ← runLine <| push { head := .var "b", args := [] }
+  let _ ← runLine <| push { head := .add    , args := [a, b]}
+  printEGraph
+  let _ ← runLine <| union a b
+  printEGraph
+  -- let _ ← runLineUnit <| rebuild
+  printEGraph
+
+  eqSat [ruleDouble]
+  let _ ← runLineUnit <| rebuild
+  printEGraph
+
+#eval runTest testRewriteCatchEquivalence
+
 def testRewriteViaEquivalence : EGraphIO Unit := do
-  IO.println "\n--- Test: Rewrite via Equivalence ---"
+  IO.println "\nTest: Rewrite via Equivalence"
 
   let ruleDouble : Rule AddMul := {
     lhs := addP (pVar "x") (pVar "x"),
@@ -155,7 +187,7 @@ def testRewriteViaEquivalence : EGraphIO Unit := do
   -- a ≡ b
   printEGraph
   let _ ← runLine <| union a b
-  let _ ← runLineUnit <| rebuild
+  -- let _ ← runLineUnit <| rebuild
   printEGraph
   let two ← runLine <| push { head := .lit 2, args := [] }
 
@@ -163,7 +195,7 @@ def testRewriteViaEquivalence : EGraphIO Unit := do
   let _ ← runLine <| push { head := .mul, args := [two, b] }
 
   printEGraph
-  runSchedule [ruleDouble]
+  eqSat [ruleDouble]
   printEGraph
 
 #eval runTest testRewriteViaEquivalence
