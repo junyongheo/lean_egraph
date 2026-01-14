@@ -37,6 +37,7 @@ Simplifications
 
 TODO: 
 1. ~~Figure out best namespace practice and put egraphs in separate namespace~~
+1. Generic-ise some of the testing infrastructure
 5. Finish writing test set
 1. Organise code into different files
 2. Change the lists to array
