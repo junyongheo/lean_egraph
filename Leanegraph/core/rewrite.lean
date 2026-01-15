@@ -32,6 +32,12 @@ inductive Pattern (α : Type _) where
 | PatVar : String → Pattern α
 deriving Repr, BEq, Hashable --why decideableeq not work, look into
 
+
+inductive Condition (α : Type _) where
+| Equal : Pattern α → Pattern α → Condition α
+| NotEqual : Pattern α → Pattern α → Condition α
+deriving BEq, Repr
+
 -- https://proofassistants.stackexchange.com/questions/2444/does-lean-4-have-built-in-dictionary-types
 abbrev Dict α [BEq α] [DecidableEq α] [Hashable α] := Std.HashMap /-(Pattern α)-/ String EClassId
 
@@ -42,7 +48,11 @@ abbrev Dict α [BEq α] [DecidableEq α] [Hashable α] := Std.HashMap /-(Pattern
 structure Rule (α : Type _) where
   lhs : Pattern α
   rhs : Pattern α
+  cnd : List (Condition α) := []
 deriving Repr -- I don't think other derivations required
+
+
+
 
 mutual
 def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : EGraphM α <| List <| Dict α := do
@@ -122,7 +132,16 @@ def instantiate (p : Pattern α) (d : Dict α) : EGraphM α <| EClassId := do
     -- push ⟨phead, ← pargs.mapM (λ a ↦ instantiate a d)⟩ -- can be done in one step like this
     -- still keep the two line definition for readability
 
-
+def checkCondition (c : Condition α) (d : Dict α) : EGraphM α <| Bool := do
+  match c with
+  | Condition.Equal p1 p2 =>
+    let id₁ ← lookupCanonicalEClassId (← instantiate p1 d)
+    let id₂ ← lookupCanonicalEClassId (← instantiate p2 d)
+    return id₁ = id₂
+  | Condition.NotEqual p1 p2 =>
+    let id₁ ← lookupCanonicalEClassId (← instantiate p1 d)
+    let id₂ ← lookupCanonicalEClassId (← instantiate p2 d)
+    return id₁ ≠ id₂
 
 def rewrite (r : Rule α) : EGraphM α <| Unit := do
   let eg ← get
@@ -138,13 +157,21 @@ def rewrite (r : Rule α) : EGraphM α <| Unit := do
       let subs ← (ematch r.lhs (← lookupCanonicalEClassId id) Std.HashMap.emptyWithCapacity)
       return subs.map (λ sub => (id, sub)))
 
-  pMatches.forM (λ (lhsId, sub) => do
+  let condTrue ← pMatches.filterM (λ (_, d) => do
+    r.cnd.allM (λc => checkCondition c d)
+
+  )
+
+  condTrue.forM (λ (lhsId, sub) => do
     let rhsId ← instantiate r.rhs sub
     let _     ← union lhsId rhsId
   )
 
 
   -- rebuild
+
+
+
 
 end EGraph
 

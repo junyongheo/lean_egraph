@@ -18,4 +18,4 @@ instance : ToString PropLang where
   | .impl   => "→"
   | .sym s  => s!"{s}"
 
-abbrev EGraphIO := EGraphGenericIO PropLang
+abbrev PropIO := EGraphGenericIO PropLang

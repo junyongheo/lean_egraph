@@ -5,7 +5,7 @@ import Leanegraph.languages.prop
 
 open EGraph
 
-def checkSameClassTests (id1 id2 : EClassId) (test : String := "") : EGraphIO Unit := do
+def checkSameClassTests (id1 id2 : EClassId) (test : String := "") : PropIO Unit := do
   let st ← get
   let (_,c1) := st.uf.find! id1
   let (_,c2) := st.uf.find! id2
@@ -31,8 +31,8 @@ macro "?" lhs:term : term => `(liftVar $lhs)
 macro "r*" lhs:term " === " rhs:term : term =>
   `({ lhs := $lhs, rhs := $rhs})
 
+-- Make it cleaner by restructuring this as smallerSet ++ (distributive rules)
 def propRules : List (Rule PropLang) := [
-
   -- Def Imply
   r* pImpl (?"a") (?"b") === pOr (pNot (?"a")) (?"b"),
   -- Imply Flip
@@ -120,7 +120,7 @@ def smallerSet : List (Rule PropLang) := [
 }
 
 -/
-def testContrapositive : EGraphIO Unit := do
+def testContrapositive : PropIO Unit := do
   IO.println "\nTest Contrapositive"
 
   -- These could also be macros...
@@ -153,7 +153,7 @@ def testContrapositive : EGraphIO Unit := do
 
 #eval runTest testContrapositive
 
-def testProveChain : EGraphIO Unit := do
+def testProveChain : PropIO Unit := do
   IO.println "\nTest Chain (Transitivity)"
 
   let x  ← runLine <| push {head := .sym "x", args := []}
@@ -197,7 +197,7 @@ def testProveChain : EGraphIO Unit := do
 #eval runTest testProveChain "ProveChain"
 
 
-def testConstFold : EGraphIO Unit := do
+def testConstFold : PropIO Unit := do
   IO.println "\nTest Constant Folding"
 
   let t ← runLine <| push {head := .bool true,  args := []}
@@ -215,3 +215,7 @@ def testConstFold : EGraphIO Unit := do
   let _ ← runLine <| checkSameClass st f "Folded to False"
 
 #eval runTest testConstFold "ConstFold"
+
+def propTests : List (PropIO Unit) := [
+  testContrapositive, testProveChain, testConstFold
+]

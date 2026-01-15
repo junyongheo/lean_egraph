@@ -318,7 +318,8 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
       return parents'.insert canon canonId
   )
   let eg' ← get
-  let _ ← set { eg' with ecmap := eg'.ecmap.insert id { eClass with parents := newParents.toList, nodes := newNodes },}
+  let eClassFinal := eg'.ecmap.get! canonId
+  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId { eClassFinal with parents := newParents.toList, nodes := newNodes },}
 
 
 /-

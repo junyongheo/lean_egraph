@@ -199,3 +199,25 @@ def testRewriteViaEquivalence : EGraphIO Unit := do
   printEGraph
 
 #eval runTest testRewriteViaEquivalence
+
+def RewritingTests := [
+  testAddComm,
+  testAddZero,
+  testDouble,
+  testRewriteCatchEquivalence,
+  testRewriteViaEquivalence,
+]
+
+-- Hmm I'm not sure how the egraph is supposed to show the infinite cycle
+def cycleTest : EGraphIO Unit := do
+  let mulZero : Rule AddMul := r* (?"x") === mulP (?"x") (litP 0)
+
+  let a ← runLine <| push { head := .var "a", args := [] }
+
+  printEGraph
+
+  eqSat [mulZero]
+
+  printEGraph
+
+#eval runTest cycleTest

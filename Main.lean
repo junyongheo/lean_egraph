@@ -6,11 +6,17 @@ import Leanegraph.framework.macros
 -- import Leanegraph.languages.lambda
 import Leanegraph.languages.prop
 import Leanegraph.tests.proptests
+import Leanegraph.tests.egraphtests
 
 
 
 def main : IO Unit := do
   IO.println s!"Tests Time..."
+  IO.println s!"EGraph Tests"
+
+  let _ ← runBatchTests EGraphOperationTests
+
+  IO.println s!"Proposition Tests"
 
   let _ ← runTest testContrapositive "Contrapositive"
   let _ ← runTest testProveChain     "Chain"

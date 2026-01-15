@@ -184,3 +184,21 @@ def EGraphOperationTests := [
 #eval runBatchTests EGraphOperationTests
 
 -- TODO: fancy tests that make the egraphs unhappy
+
+-- Just curious if this works
+def testCycle : EGraphIO Unit := do
+  let a ← runLine <| push { head := AddMul.var "a", args := []}
+  let o ← runLine <| push { head := AddMul.lit 1, args := []}
+  let b ← runLine <| push { head := AddMul.add, args := [a,o]}
+
+  printEGraph
+
+  let _ ← runLine <| union a b
+
+  printEGraph
+
+  let _ ← runLineUnit <| rebuild
+
+  printEGraph
+
+#eval runTest testCycle
