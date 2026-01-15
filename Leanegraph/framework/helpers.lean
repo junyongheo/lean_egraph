@@ -40,6 +40,8 @@ def checkSameClass (id1 id2 : EClassId) (test : String := "") : EGraphM α <| EC
   else
     return c1
 
+
+
 -- I'm not too worried about for loops anymore...
 def printEGraph : EGraphGenericIO α <| Unit := do
   let eg ← get
@@ -102,6 +104,8 @@ def eqSat
       runLineUnit <| rewrite (α := α) (r := r)
 
     runLineUnit <| rebuild
+
+    -- printEGraph
 
     let egEnd ← get
     let numClassesEnd := egEnd.uf.size

@@ -277,8 +277,15 @@ def union (id₁ id₂ : EClassId) : EGraphM α (EClassId) := do
   Hegg does away with one loop completely
 -/
 def repair (id : EClassId) : EGraphM α (Unit) := do
+
+  let canonId ← lookupCanonicalEClassId id
   let eg ← get
-  let eClass := eg.ecmap.get! id
+  match eg.ecmap.get? canonId with
+  | some _ => pure () -- no op it exists go on
+  | none   => return () -- don't panic all is well
+
+
+  let eClass := eg.ecmap.get! canonId
 
   -- Loop 1...
   let (updateHCons, collisions) ← eClass.parents.foldlM (init := (eg.hcons, [])) (λ (hcons', collisions') (p : (ENode α × EClassId)) => do

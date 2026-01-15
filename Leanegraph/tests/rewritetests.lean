@@ -129,8 +129,8 @@ def testDouble : EGraphIO Unit := do
   let a ← runLine <| push { head := .var "a", args := [] }
   let two ← runLine <| push { head := .lit 2, args := [] }
 
-  let expr ← runLine <| push { head := .add, args := [a, a] }
-  let target ← runLine <| push { head := .mul, args := [two, a] }
+  let _expr ← runLine <| push { head := .add, args := [a, a] }
+  let _target ← runLine <| push { head := .mul, args := [two, a] }
 
   printEGraph
 
