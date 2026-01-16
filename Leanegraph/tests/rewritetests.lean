@@ -2,6 +2,7 @@ import Leanegraph.core.egraphs
 import Leanegraph.core.rewrite
 import Leanegraph.framework.helpers
 import Leanegraph.languages.addmul
+import Leanegraph.framework.extraction
 
 /-
   WIP
