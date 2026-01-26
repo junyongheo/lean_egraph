@@ -25,3 +25,22 @@ instance Analysis : EGraph.Analysis PropLang Unit where
   modify eg _ := eg
 
 abbrev PropIO := EGraphGenericIO PropLang Unit
+
+instance : ParseExpr PropLang where
+  parse sx := match sx with
+  | .atom s =>
+    if s == "true"
+      then some (.bool true, [])
+    else if s == "false"
+      then some (.bool false, [])
+    else
+      some (.sym s, [])
+
+  | .list (head :: args) =>
+    match head with
+    | .atom "&"  => some (.and, args)
+    | .atom "|"   => some (.or,  args)
+    | .atom "¬"  => some (.not, args)
+    | .atom "→" => some (.impl, args)
+    | _ => none
+  | .list [] => none

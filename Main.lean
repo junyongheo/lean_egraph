@@ -4,16 +4,14 @@ import Leanegraph.framework.helpers
 import Leanegraph.framework.macros
 import Leanegraph.languages.addmul
 import Leanegraph.languages.lambda
-import Leanegraph.languages.prop
-import Leanegraph.tests.proptests
+-- import Leanegraph.languages.prop
+-- import Leanegraph.tests.proptests
 import Leanegraph.tests.egraphtests
 import Leanegraph.tests.mathtest
 
 
 
 def main : IO Unit := do
-  IO.println s!"Tests Time..."
-  IO.println s!"EGraph Tests"
   /-
   let _ ← runBatchTests EGraphOperationTests
 
@@ -23,4 +21,5 @@ def main : IO Unit := do
   let _ ← runTest testProveChain     "Chain"
   let _ ← runTest testConstFold      "Constant Fold"
   -/
-  let _ ← runTest testAnalysisCF "CF"
+  -- let _ ← runTest testAnalysisCF "CF"
+  let _ ← runTest math_simplify_factor "Folds"

@@ -1,6 +1,6 @@
 import Leanegraph.core.egraphs
 import Leanegraph.core.rewrite
-import Leanegraph.framework.helpers
+import Leanegraph.framework
 import Leanegraph.languages.prop
 
 open EGraph
@@ -27,9 +27,6 @@ def pImpl(a b : Pattern <| PropLang) := liftTerm (.impl  ) [a, b]
 def pSym (s   : String             ) := liftTerm (.sym s ) []
 
 macro "?" lhs:term : term => `(liftVar $lhs)
-
-macro "r*" lhs:term " === " rhs:term : term =>
-  `({ lhs := $lhs, rhs := $rhs})
 
 -- Make it cleaner by restructuring this as smallerSet ++ (distributive rules)
 def propRules : List (Rule PropLang Unit) := [
@@ -151,7 +148,7 @@ def testContrapositive : PropIO Unit := do
   -- let _ ← runLine <| checkSameClass st t3
   -- let _ ← runLine <| checkSameClass st t4
 
-#eval runTest testContrapositive
+-- #eval runTest testContrapositive
 
 def testProveChain : PropIO Unit := do
   IO.println "\nTest Chain (Transitivity)"
@@ -194,7 +191,7 @@ def testProveChain : PropIO Unit := do
   let _ ← runLine <| checkSameClass st t4
   let _ ← runLine <| checkSameClass st t5
 
-#eval runTest testProveChain "ProveChain"
+-- #eval runTest testProveChain "ProveChain"
 
 
 def testConstFold : PropIO Unit := do
@@ -214,8 +211,73 @@ def testConstFold : PropIO Unit := do
 
   let _ ← runLine <| checkSameClass st f "Folded to False"
 
-#eval runTest testConstFold "ConstFold"
+-- #eval runTest testConstFold "ConstFold"
 
 def propTests : List (PropIO Unit) := [
   testContrapositive, testProveChain, testConstFold
 ]
+
+def testAutomated : PropIO Unit := do
+  IO.println "\n Test String to EG"
+
+  let implxy := "(→ (¬ x y) z)"
+
+  match ExprParser.SExprParser.run implxy with
+  | .ok theStr => runLine <| buildEGFromSExprGeneric theStr
+  | .error e  => panic! s!"This did not work with error {e}"
+
+  -- runLine <| buildEGFromSExprGeneric <| ExprParser.SExprParser.run implxy
+  printEGraph
+
+-- #eval runTest testAutomated
+
+def testAutomatedChain : PropIO Unit := do
+  IO.println "\nTest Chain (Transitivity)"
+
+  let st ← pushTerm "(& (→ x y) (→ y z))"
+
+
+
+  printEGraph
+  eqSat (α := PropLang) smallerSet (limit := 5)
+  printEGraph
+
+
+  -- 1. (& (-> (~ y) (~ x)) (-> y z))
+  let r1 ← pushTerm "(& (→ (¬ y) (¬ x)) (→ y z))"
+  -- 2. (& (-> y z) (-> (~ y) (~ x)))
+  let r2 ← pushTerm "(& (→ y z) (→ (¬ y) (¬ x)))"
+
+  -- 3. (| z (~ x))
+  let r3 ← pushTerm "(| z (¬ x))"
+
+  -- 4. (| (~ x) z)
+  let r4 ← pushTerm "(| (¬ x) z)"
+
+  -- 5. (-> x z)
+  let t5 ← pushTerm "(→ x z)"
+
+  let _ ← runLine <| checkSameClass st r1
+  let _ ← runLine <| checkSameClass st r2
+  let _ ← runLine <| checkSameClass st r3
+  let _ ← runLine <| checkSameClass st r4
+  let _ ← runLine <| checkSameClass st t5
+
+-- #eval runTest testProveChain "ProveChain"
+
+def fullyAutomated : IO Unit := do
+  test_fn_self
+    (lhs := "(& (→ x y) (→ y z))")
+    (rhs := [
+      "(& (→ (¬ y) (¬ x)) (→ y z))",
+      "(& (→ y z) (→ (¬ y) (¬ x)))",
+      "(| z (¬ x))",
+      "(| (¬ x) z)",
+      "(→ x z)"
+    ])
+    (rules := smallerSet)
+    (iterLimit := 5)
+    (printLeft := true)
+    (printRight := false)
+
+-- #eval fullyAutomated

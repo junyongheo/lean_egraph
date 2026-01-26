@@ -40,6 +40,30 @@ instance : ToString MathLang where
   | .sin     => "sin"
   | .cos     => "cos"
 
+instance : ParseExpr MathLang where
+  parse sx :=
+  match sx with
+  | .atom s =>
+    match s.toNat? with
+    | some n => some (.const n, [])
+    | none   => some (.sym   s, [])
+  | .list (head :: args) =>
+    match head with
+    | .atom "+"    => some (.add,  args)
+    | .atom "-"    => some (.sub,  args)
+    | .atom "*"    => some (.mul,  args)
+    | .atom "/"    => some (.div,  args)
+    | .atom "d"    => some (.d,    args)
+    | .atom "i"    => some (.i,    args)
+    | .atom "pow"    => some (.pow,  args)
+    | .atom "ln"   => some (.ln,   args)
+    | .atom "sqrt" => some (.sqrt, args)
+    | .atom "sin"  => some (.sin,  args)
+    | .atom "cos"  => some (.cos,  args)
+    | _ => none
+  | .list [] => none
+
+
 
 def liftVar (s : String) : Pattern MathLang := Pattern.PatVar s
 def liftTerm (h : MathLang) (args : List (Pattern MathLang)) : Pattern MathLang := Pattern.PatTerm h args
@@ -147,6 +171,7 @@ instance ConstantFold : EGraph.Analysis MathLang MathLangData where
 
         let (_, eg') := addNew.run eg
         eg'
+
 abbrev MathLangIO := EGraphGenericIO MathLang MathLangData
 
 /-
@@ -226,14 +251,7 @@ def isConstOrDistinctVar (c x : String) : Dict MathLang → EGraphM MathLang Mat
       | none   => return false -- is neither const nor distinct
 
 abbrev MathRule := Rule MathLang MathLangData
-macro "r*" lhs:term " === " rhs:term : term =>
-  `({ lhs := $lhs, rhs := $rhs, cnd := [] })
 
-macro "r*" lhs:term " === " rhs:term " if " cnd:term : term =>
-  `({ lhs := $lhs, rhs := $rhs, cnd := [Condition.CustomLookup ($cnd)] })
-
-macro "r*" lhs:term " === " rhs:term " ifMultiple " cnd:term : term =>
-  `({ lhs := $lhs, rhs := $rhs, cnd := $cnd})
 
 prefix:100 "?" => Pattern.PatVar
 
@@ -246,7 +264,7 @@ def mathRules : List (MathRule) := [
   r* pMul (?"a") (pMul (?"b") (?"c")) === pMul (pMul (?"a") (?"b")) (?"c"),
 
   r* pSub (?"a") (?"b") === pAdd (?"a") (pMul (pConst (-1)) (?"b")),
-  r* pDiv (?"a") (?"b") === pMul (?"a") (pPow (?"b") (pConst (-1))) if (isNotZero "b"),
+  r* pDiv (?"a") (?"b") === pMul (?"a") (pPow (?"b") (pConst (-1))) if isNotZero "b",
 
   r* pAdd (?"a") (pConst 0) === (?"a"),
   r* pMul (?"a") (pConst 0) === (pConst 0),
@@ -265,8 +283,8 @@ def mathRules : List (MathRule) := [
   r* pPow (?"x") (pConst 0) === (pConst 1) if (isNotZero "x"),
   r* pPow (?"x") (pConst 1) === (?"x"),
   r* pPow (?"x") (pConst 2) === pMul (?"x") (?"x"),
-  r* pPow (?"x") (pConst (-1)) === pDiv (pConst 1) (?"x") if (isNotZero "x"),
-  r* pMul (?"x") (pDiv (pConst 1) (?"x")) === (pConst 1) if (isNotZero "x"),
+  r* pPow (?"x") (pConst (-1)) === pDiv (pConst 1) (?"x") if isNotZero "x",
+  r* pMul (?"x") (pDiv (pConst 1) (?"x")) === (pConst 1) if isNotZero "x",
 
   r* pDiff (?"x") (?"x") === (pConst 1) if isSym "x",
   r* pDiff (?"c") (?"x") === (pConst 0) if isConstOrDistinctVar "c" "x",
@@ -282,8 +300,10 @@ def mathRules : List (MathRule) := [
   r* pDiff (pPow (?"f") (?"g")) (?"x") ===
      pMul (pPow (?"f") (?"g"))
           (pAdd (pMul (pDiff (?"f") (?"x")) (pDiv (?"g") (?"f")))
-                (pMul (pDiff (?"g") (?"x")) (pLn (?"f")))) ifMultiple  [
-                  Condition.CustomLookup (isNotZero "f"), Condition.CustomLookup (isNotZero "g")],
+                (pMul (pDiff (?"g") (?"x")) (pLn (?"f")))) ifMultiple
+                [
+                  (isNotZero "f"), (isNotZero "g")
+                ],
 
 
   r* pIntg (pConst 1) (?"x") === (?"x"),

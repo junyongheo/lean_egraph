@@ -40,7 +40,13 @@ def checkSameClass (id1 id2 : EClassId) (test : String := "") : EGraphM α D <| 
   else
     return c1
 
-
+def checkDiffClass (id1 id2 : EClassId) (test : String := "") : EGraphM α D <| EClassId := do
+  let c1 ← lookupCanonicalEClassId id1
+  let c2 ← lookupCanonicalEClassId id2
+  if c1 = c2 then
+    panic! s!"Test Failed: {test} | Expected {c1} ≠ {c2}"
+  else
+    return c1
 
 -- I'm not too worried about for loops anymore...
 def printEGraph : EGraphGenericIO α (D := D) <| Unit := do
@@ -66,27 +72,6 @@ def runLineUnit (line : EGraphM α D <| Unit) : EGraphGenericIO α (D := D) <| U
   set s'
   return
 
-/-
--- Deprecated: pass rebuild to "runLineUnit <| rebuild"
-def runRebuild : EGraphGenericIO α <| Unit := do
-  let s ← get
-  let (res, s') := rebuild.run s
-  set s'
-  return res
--/
-
-def runTest (test : EGraphGenericIO α (D := D) <| Unit) (testName: String := ""): IO Unit := do
-  let emptyGraph : EGraph α D := EGraph.empty
-  let _ ← test.run emptyGraph
-  IO.println s!"Test {testName} Completed"
-  IO.println "Test Completed"
-
-
-
-
-/-
-
--/
 def eqSat
       {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
       {D : Type _}
@@ -94,6 +79,8 @@ def eqSat
       [Inhabited D]
       (rules : List (Rule α D))
       (limit : Nat := 10)
+      -- (nodeLimit : Option Nat := none)
+      (nodeLimit : Nat := 0)
     : EGraphGenericIO α (D := D) Unit := do
   let mut i := 0
   while i < limit do
@@ -114,9 +101,34 @@ def eqSat
     let numNodesEnd   := egEnd.size
     if numClassesStart == numClassesEnd && numNodesStart == numNodesEnd then
       return ()
+    if (nodeLimit > 0 ∧ egEnd.size > nodeLimit) then return ()
+
+    -- IO.println s!"Jebal jom {i}"
 
     i := i + 1
 
+
+
+
+/-
+-- Deprecated: pass rebuild to "runLineUnit <| rebuild"
+def runRebuild : EGraphGenericIO α <| Unit := do
+  let s ← get
+  let (res, s') := rebuild.run s
+  set s'
+  return res
+-/
+
+def runTest (test : EGraphGenericIO α (D := D) <| Unit) (testName: String := ""): IO Unit := do
+  let emptyGraph : EGraph α D := EGraph.empty
+  let _ ← test.run emptyGraph
+  IO.println s!"Test {testName} Completed"
+
+
+
+/-
+
+-/
 open ExprParser
 
 /-
@@ -128,27 +140,110 @@ open ExprParser
   we should be returning EClassId (what push returns)
 
   Using an EGraphM, we pass the state along the recursions. Make sure to call ← get.
-
+  CANCELLED:
+    extensive generic interface
+  NEW:
+    Just make the user define it, it's their problem.
 -/
-def buildEGFromSExpr (sx : SExpr) : EGraphM α D EClassId := do
-  match sx with
-  /-
-    Atom is all op and arg
-  -/
-  | .atom s =>
 
-    sorry
-  | .list [] =>
-    -- lift the arg strings into the appropriate versions
-    sorry
-  -- Parse elements of the list...
-  | .list (head :: tail) =>
-    match head with
-    | .atom op =>
-      -- match FromOp op with
-      -- runLine <| pushRun {head := op, args := (map buildEGFromSExpr to tail)}
-      sorry
-    | _        => panic! s!"Head of list {sx} is {head} but should be op..?"
+
+class ParseExpr (α : Type _) where
+  parse : SExpr → Option (α × List SExpr)
+
+variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α] [ParseExpr α]
+
+partial def buildEGFromSExprGeneric [Analysis α D] (sx : SExpr) : EGraphM α D EClassId := do
+  match ParseExpr.parse (α := α) sx with
+  | some (op, args) =>
+    let argIds ← args.mapM buildEGFromSExprGeneric
+    pushRun {head := op, args := argIds}
+  | none =>
+    panic! s!"Failed to parse argument"
+
+
+-- I'm running out of proper names
+-- or proper formatting
+def test_fn
+    [Analysis α D]
+    -- (testName: String := "")
+    (lhs : String)
+    (rhs : List String)
+    (rules : List <| Rule α D)
+    (iterLimit : Nat := 10)
+    (printLeft : Bool := false)
+    (printRight : Bool := false)
+  : EGraphGenericIO α D Unit := do
+
+
+
+
+  let st ← (
+    match (ExprParser.SExprParser.run lhs) with
+    | .ok expr => runLine <| buildEGFromSExprGeneric expr
+    | .error e => panic! s!"Error with {e}"
+  )
+
+  if printLeft then printEGraph
+  eqSat rules iterLimit
+  if printRight then printEGraph
+
+  for rh in rhs do
+  -- build the rhs, cant use the predefined macros in macros.lean
+    let t1 ← ( match (ExprParser.SExprParser.run rh) with
+                          | .ok expr => runLine <| buildEGFromSExprGeneric expr
+                          | .error e => panic! s!"Error with {e}")
+    let _ ← runLine <| checkSameClass st t1
+    IO.println s!"{lhs} and {rh} are same class"
+
+
+def test_fn_self
+    [Analysis α D]
+    (testName: String := "")
+    (lhs : String)
+    (rhs : List String)
+    (rules : List <| Rule α D)
+    (iterLimit : Nat := 10)
+    (printLeft : Bool := false)
+    (printRight : Bool := false)
+  -- : EGraphGenericIO α D Unit := do
+  : IO Unit := do
+
+  let emptyGraph : EGraph α D := EGraph.empty
+
+  IO.println s!"Starting Test {testName}"
+
+  let _ ← (do
+    let st ← (
+      match (ExprParser.SExprParser.run lhs) with
+      | .ok expr => runLine <| buildEGFromSExprGeneric expr
+      | .error e => panic! s!"Error with {e}"
+    )
+
+    if printLeft then printEGraph
+    eqSat rules iterLimit
+    if printRight then printEGraph
+
+    for rh in rhs do
+    -- build the rhs, cant use the predefined macros in macros.lean
+      let t1 ← ( match (ExprParser.SExprParser.run rh) with
+                            | .ok expr => runLine <| buildEGFromSExprGeneric expr
+                            | .error e => panic! s!"Error with {e}")
+      let _ ← runLine <| checkSameClass st t1
+      IO.println s!"{lhs} and {rh} are same class"
+  ).run emptyGraph
+
+  IO.println s!"Test {testName} Completed"
+
+
+/-
+  Non-Option Case
+  TODO: Think which one better?
+
+partial def buildEGFromSExprGeneric [Analysis α D] (sx : SExpr) : EGraphM α D EClassId := do
+  let (op, args) := (ParseExpr.parse (α := α) sx)
+  let argIds ← args.mapM buildEGFromSExprGeneric
+  pushRun {head := op, args := argIds}
+-/
 /-
   Note for horrendous type bug in case it happens again
   '''

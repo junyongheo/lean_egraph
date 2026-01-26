@@ -31,7 +31,7 @@ def testPushOperation : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testPushOperation "Push"
+-- #eval runTest testPushOperation "Push"
 
 -- Tests union operation.
 -- Expect: 2 classes, with 1 and 2 terms respectively.
@@ -53,7 +53,7 @@ def testUnionOperation : EGraphIO Unit := do
 
   IO.println s!"Variables {a} and {b} in class {c1}"
 
-#eval runTest testUnionOperation "Union"
+--#eval runTest testUnionOperation "Union"
 
 
 /-
@@ -69,7 +69,7 @@ def runBatchTests (allTests : List (EGraphIO Unit)) : IO Unit := do
     runTest test
     IO.println "======\nNEXT TEST\n======"
 
-#eval runBatchTests listOfTests
+--#eval runBatchTests listOfTests
 
 
 /-
@@ -86,7 +86,7 @@ def testHashCons : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testHashCons "HashCons"
+--#eval runTest testHashCons "HashCons"
 
 
 /-
@@ -116,7 +116,7 @@ def testCongruence : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testCongruence "Congruence"
+--#eval runTest testCongruence "Congruence"
 
 /-
   Test if congruence propagates
@@ -149,7 +149,7 @@ def testCongruencePropagation : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testCongruencePropagation "Nested Congruence"
+--#eval runTest testCongruencePropagation "Nested Congruence"
 
 /-
   Test if (a ≡ b) → (b ≡ c) → (a ≡ c)
@@ -170,7 +170,7 @@ def testUnionTransitive : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testUnionTransitive
+--#eval runTest testUnionTransitive
 
 def EGraphOperationTests := [
   testPushOperation,
@@ -181,7 +181,7 @@ def EGraphOperationTests := [
   testUnionTransitive,
 ]
 
-#eval runBatchTests EGraphOperationTests
+--#eval runBatchTests EGraphOperationTests
 
 -- TODO: fancy tests that make the egraphs unhappy
 
@@ -201,4 +201,4 @@ def testCycle : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testCycle
+--#eval runTest testCycle

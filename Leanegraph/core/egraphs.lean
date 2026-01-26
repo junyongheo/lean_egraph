@@ -406,7 +406,7 @@ partial def rebuild (join : D → D → D) (modify : EGraph α D → EClassId �
     repair item join
 
     let eg' ← get
-    let eg'' := modify eg' item
+    let eg'' := modify eg' (← lookupCanonicalEClassId item) -- canonicalise after repair!!!
     let _ ← set eg''
 
   rebuild join modify

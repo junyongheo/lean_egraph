@@ -105,4 +105,4 @@ def tests : IO Unit := do
     | .ok res => IO.println s!"Parsed: {res}"
     | .error e => IO.println s!"{e}"
 
-#eval tests
+-- #eval tests
