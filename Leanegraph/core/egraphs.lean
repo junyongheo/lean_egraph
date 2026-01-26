@@ -4,6 +4,7 @@ import Batteries.Data.UnionFind
   Implementations of E-Node, E-Class, E-Graph and functions that operate on them
 -/
 variable {α : Type _} [DecidableEq α] [BEq α][Hashable α] [Repr α]
+variable {D : Type _} [Inhabited D]
 
 namespace EGraph
 
@@ -22,40 +23,11 @@ deriving Hashable, DecidableEq, BEq, Repr
   Performance is not an issue yet, lists instead of array for easier implementation
   TODO: switch to array (...eventually)
 -/
-structure EClass (α : Type _) where
+structure EClass (α : Type _) (D : Type _) where
   nodes : List (ENode α)
   parents : List (ENode α × EClassId)
+  data : D
 deriving Repr
-
-instance : Inhabited (EClass α) where
-  default := {
-    nodes := []
-    parents := []
-  }
-
-/-
-  Makes an instance of an EClass, either empty of from a Node
-
--/
-def EClass.empty {α : Type _} : EClass α :=
-  {
-    nodes := []
-    parents := []
-  }
-
-def EClass.fromNode {α : Type _} (en : ENode α) : EClass α:=
-  {
-    nodes := [en]
-    parents := []
-  }
-
-def EClass.merge (ec₁ ec₂ : EClass α) : EClass α :=
-  {
-    -- TODO: think.. do we need to dedup here also?
-    -- Just do it
-    nodes   := (ec₁.nodes ++ ec₂.nodes).eraseDups
-    parents := ec₁.parents ++ ec₂.parents
-  }
 
 /-
   An e-graph is a tuple (U,M,H) of
@@ -63,24 +35,111 @@ def EClass.merge (ec₁ ec₂ : EClass α) : EClass α :=
     E-class Map M - Map of *e-class ids to e-classes*
     Hashcons H - Map of *e-nodes to e-class ids*
 -/
-structure EGraph (α : Type _) [DecidableEq α][BEq α] [Hashable α] where
+structure EGraph (α : Type _) (D : Type _) [DecidableEq α][BEq α] [Hashable α] where
   uf    : Batteries.UnionFind
-  ecmap : Std.HashMap EClassId (EClass α)
+  ecmap : Std.HashMap EClassId (EClass α D)
   hcons : Std.HashMap (ENode α) EClassId
   dirty : List EClassId
   -- For performance reasons, add a mapping of all terms by operator
   opmap : Std.HashMap α (List EClassId)
 
+instance [Inhabited D] : Inhabited (EClass α D) where
+  default := {
+    nodes := []
+    parents := []
+    data := default
+  }
+
+class Analysis (α : Type _) (D : Type _)  [DecidableEq α][BEq α] [Hashable α] where
+  /- When a new e-node 𝑛 is added to 𝐺 into a new,
+  singleton e-class 𝑐, construct a new value 𝑑𝑐 ∈ 𝐷
+  to be associated with 𝑛’s new e-class,
+  typically by accessing the associated data of 𝑛’s children. -/
+  -- make(𝑛) → 𝑑𝑐
+  make : (en : ENode α) → List D → D
+
+
+
+
+  -- join(𝑑𝑐1,𝑑𝑐2) →𝑑𝑐
+  /-
+    Whene-classes𝑐1,𝑐2 arebeingmergedinto𝑐,join𝑑𝑐1,𝑑𝑐2
+    intoanew value 𝑑𝑐 to be associated with the new e-class 𝑐.
+  -/
+  join : D → D → D
+
+  -- modify(𝑐) → 𝑐′
+  /-
+    Modify the *e-class* c based on dc.
+    Should be idempotent (modify(modify(c))) = modify(c)
+    TODO: another look at this...
+    Option 1: Take E-Graph, lookup and modify E-Class, return E-Graph
+    Option 2: Take E-Class, modify, return, then calling function sets
+    -- Preferably Option 2?
+    -- *Adds Nodes*, so is the single e-class enough? Perhaps not. Option 1 then.
+  -/
+  modify : EGraph α D → EClassId → EGraph α D
+
+
+
+instance : Inhabited (Analysis α Unit) where
+  default := {
+    make    _  _ := (),
+    join    _  _ := (),
+    modify  eg _ := eg
+  }
+
+instance : Analysis α Unit where
+  make _ _ := ()
+  join _ _ := ()
+  modify eg _ := eg
+
+
+/-
+  Makes an instance of an EClass, either empty of from a Node
+
+-/
+def EClass.empty [Inhabited D] {α : Type _} : EClass α D :=
+  {
+    nodes := []
+    parents := []
+    data := default
+  }
+
+def EClass.fromNode {α : Type _} (en : ENode α) (data : D) : EClass α D :=
+  {
+    nodes := [en]
+    parents := []
+    data := data
+  }
+
+def EClass.merge (ec₁ ec₂ : EClass α D) (join : D → D → D) : EClass α D:=
+  {
+    -- TODO: think.. do we need to dedup here also?
+    -- Just do it
+    nodes   := (ec₁.nodes ++ ec₂.nodes).eraseDups
+    parents := ec₁.parents ++ ec₂.parents
+
+    -- Analysis?
+    -- Without the α, lean complains
+    -- But if I do α and d, it complains again
+    -- Not sure why, TODO: make sure this is working as expected
+    -- Since lean calls @Analysis
+    data := join (ec₁.data) (ec₂.data)
+  }
+
+
+
 
 -- Is there a benefit to using the λ notation I wonder... readability? versatility?
-def EGraph.size (eg : EGraph α) : Nat :=
+def EGraph.size (eg : EGraph α D) : Nat :=
   eg.uf.size
 
 /-
   Constructor for an empty instance. Use the nil/empty constructors for each component.
   For the hashcons, empty is deprecated so emptyWithCapacity is used as per suggestion
 -/
-def EGraph.empty : EGraph α :=
+def EGraph.empty : EGraph α D:=
   {
     uf    := Batteries.UnionFind.empty
     ecmap := Std.HashMap.emptyWithCapacity
@@ -94,7 +153,7 @@ def EGraph.empty : EGraph α :=
 /-
   State monad for e-graph
 -/
-abbrev EGraphM α [DecidableEq α] [BEq α] [Hashable α] := StateM (EGraph α)
+abbrev EGraphM (α : Type _) (D : Type _) [DecidableEq α] [BEq α] [Hashable α] := StateM (EGraph α D)
 
 /-
 -- I think a runtime panic is better since we know something is wrong instead
@@ -123,7 +182,7 @@ def sameClass (eg: EGraph α) (ec1 : ENode α) (ec2 : ENode α) : EGraph α × B
   Lookup Canonical E-Class Id
   Uses find!
 -/
-def lookupCanonicalEClassId (id : EClassId) : EGraphM α <| EClassId := do
+def lookupCanonicalEClassId (id : EClassId) : EGraphM α D <| EClassId := do
   let eg ← get
   let ⟨uf', res⟩ := eg.uf.find! id
   let _ ← set { eg with uf := uf' }
@@ -136,14 +195,14 @@ def lookupCanonicalEClassId (id : EClassId) : EGraphM α <| EClassId := do
 -- Do I really have to write -ize and not -ise
 -- Realisation: no one will call this except me
 -- I am freeeeee
-def canonicalise (en : ENode α) : EGraphM α (ENode α) := do
+def canonicalise (en : ENode α) : EGraphM α D (ENode α) := do
   let newargs : List EClassId ← en.args.mapM lookupCanonicalEClassId
   return { en with args := newargs}
 
 -- Do it anyway... :'(
-abbrev canonicalize (en : ENode α) := canonicalise en
+-- abbrev canonicalize (en : ENode α) := canonicalise en
 
-def findClass (en : ENode α) : EGraphM α (Option EClassId) := do
+def findClass (en : ENode α) : EGraphM α D (Option EClassId) := do
   let en' ← canonicalise en
   let eg ← get
   match eg.hcons.get? en' with
@@ -167,7 +226,7 @@ def findClass (en : ENode α) : EGraphM α (Option EClassId) := do
   None should not be reachable but for completion
   TODO: replace with .get! ?
 -/
-def updateParents (ecmap : Std.HashMap EClassId (EClass α)) (en : ENode α) (eid : EClassId) : Std.HashMap EClassId (EClass α) :=
+def updateParents (ecmap : Std.HashMap EClassId (EClass α D)) (en : ENode α) (eid : EClassId) : Std.HashMap EClassId (EClass α D) :=
   en.args.foldl (init := ecmap) (λ ecmap' argId =>
     match ecmap'.get? argId with
     | some cls =>
@@ -177,14 +236,17 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α)) (en : ENode α) (ei
     | none     => panic! "updateParents none should not be reachable"-- ecmap' -- if not reachable better warning i guess
   )
 
-  def canonicaliseParents (par: List (ENode α × EClassId)) :EGraphM α (List (ENode α × EClassId)) := do
+
+/-
+  -- This is not used and doesn't type check anymore
+  def canonicaliseParents (par: List (ENode α × EClassId)) : EGraphM α D (List (ENode α × EClassId)) := do
     let par' ← par.mapM (λ (en,id) => do
       let en' ← canonicalise en
       let id' ← lookupCanonicalEClassId id
       return (en', id')
     )
     return par'.eraseDups
-
+-/
 -- NOT TRUE: I don't think a monad is necessary here, we can just return a × with EGraph and ID
 -- That is untrue!! Because of the previous wrappers I think we're stuck with a monad
 -- Ask: is it normal to have so many do blocks because everything is monadic
@@ -195,7 +257,7 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α)) (en : ENode α) (ei
   If it doesn't, add it to the UF, E-Class Map, HCons
   Returns the new ID (which is the size of the E-Graph)
 -/
-def push (en : ENode α) : EGraphM α (EClassId) := do
+def push {D : Type _} [Inhabited (EClass α D)] (en : ENode α) (make : ENode α → List D → D): EGraphM α D (EClassId) := do
   let en' ← canonicalise en
   let canonId ← findClass en'
   match canonId with
@@ -208,7 +270,12 @@ def push (en : ENode α) : EGraphM α (EClassId) := do
 
     let ecmap' := updateParents eg.ecmap en' curSize
 
-    let ecmap'' := ecmap'.insert curSize (EClass.fromNode en')
+    let childData := en'.args.map (λ id =>
+      (eg.ecmap.get! id).data
+    )
+
+
+    let ecmap'' := ecmap'.insert curSize (EClass.fromNode en' (make en' childData))
     let hcons' := eg.hcons.insert en' curSize
 
     -- Operator Map
@@ -225,10 +292,9 @@ def push (en : ENode α) : EGraphM α (EClassId) := do
             ecmap := ecmap'',
             hcons := hcons',
             opmap := opmap'
+            dirty := curSize :: eg.dirty
         }
     return curSize
-
-
 
 -- I never use the return value here but hegg (haskell egg) returns eclassid, keep that for now
 -- Similar question to the above, are we bound to a do-block because of the union-find here?
@@ -237,7 +303,7 @@ def push (en : ENode α) : EGraphM α (EClassId) := do
 -- https://hackage-content.haskell.org/package/hegg-0.6.0.0/docs/src/Data.Equality.Graph.html#merge
 -- TODO: i think we can extract a lot of these into smaller pure helper functions
 -- the merge eclasses, hashcons
-def union (id₁ id₂ : EClassId) : EGraphM α (EClassId) := do
+def union (id₁ id₂ : EClassId) (join : D → D → D) : EGraphM α D (EClassId) := do
 
   -- Get canonical classes for the inputs
   let id₁' ← lookupCanonicalEClassId id₁
@@ -259,7 +325,7 @@ def union (id₁ id₂ : EClassId) : EGraphM α (EClassId) := do
 
     -- merge std hashmap union
     -- also touch parents -- not in egg style deferred
-    let leaderClass := EClass.merge (eg.ecmap.get! leaderClassId) (eg.ecmap.get! fromId)
+    let leaderClass := EClass.merge (eg.ecmap.get! leaderClassId) (eg.ecmap.get! fromId) join
 
     let _ ← set {
                   eg with
@@ -276,7 +342,7 @@ def union (id₁ id₂ : EClassId) : EGraphM α (EClassId) := do
   TODO: I think the two loops can be merged..?
   Hegg does away with one loop completely
 -/
-def repair (id : EClassId) : EGraphM α (Unit) := do
+def repair (id : EClassId) (join : D → D → D) : EGraphM α D (Unit) := do
 
   let canonId ← lookupCanonicalEClassId id
   let eg ← get
@@ -301,7 +367,7 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
   let _ ← set { eg with hcons := updateHCons }
 
   for (id₁, id₂) in collisions do
-    let _ ← union id₁ id₂
+    let _ ← union id₁ id₂ join
 
   let curNodes ← eClass.nodes.mapM canonicalise
   let newNodes := curNodes.eraseDups
@@ -312,7 +378,7 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
     let canonId ← lookupCanonicalEClassId p.2
     match parents'.get? canon with
     | some eid =>
-      let _ ← union eid canonId
+      let _ ← union eid canonId join
       return parents'
     | none    =>
       return parents'.insert canon canonId
@@ -328,7 +394,7 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
   Recursively calls rebuild until everything is empty
 -/
 
-partial def rebuild : EGraphM α (Unit) := do
+partial def rebuild (join : D → D → D) (modify : EGraph α D → EClassId → EGraph α D) : EGraphM α D (Unit) := do
   let eg ← get
   let todo := eg.dirty
   if todo.isEmpty then return else
@@ -337,10 +403,29 @@ partial def rebuild : EGraphM α (Unit) := do
   let repairList := (← todo.mapM lookupCanonicalEClassId).eraseDups
 
   for item in repairList do
-    repair item
+    repair item join
 
-  rebuild
+    let eg' ← get
+    let eg'' := modify eg' item
+    let _ ← set eg''
 
+  rebuild join modify
+
+/-
+  For Testing And Execution
+  TODO: macros
+-/
+
+def pushRun [Analysis α D] (en : ENode α) : EGraphM α D EClassId := do
+  let id ← push en Analysis.make
+  return id
+
+def unionRun [Analysis α D] (id₁ id₂ : EClassId) : EGraphM α D EClassId := do
+  let id ← union id₁ id₂ (Analysis.join (α := α) (D := D))
+  return id
+
+def rebuildRun [Analysis α D] : EGraphM α D (Unit) := do
+  rebuild (Analysis.join (α := α)) Analysis.modify
 
 /-
 -- Cannot update hcons so union in loop 2 will not be updated, better to keep track of collisions

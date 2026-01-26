@@ -1,12 +1,12 @@
-import Leanegraph.core.egraphs
-import Leanegraph.core.rewrite
-
+import Leanegraph.core
+import Leanegraph.framework.parser
 /-
   This file contains the helper functions and framework for execution and running tests.
 -/
 
 -- Constraints on α
-variable {α : Type _} [DecidableEq α] [BEq α] [Hashable α] [Repr α]
+variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
+variable {D : Type _} [Inhabited D]
 
 open EGraph
 
@@ -14,7 +14,7 @@ open EGraph
   Allows the user to define a language for testing
   The monstrosity below was a curious test. Luckily for us it doesn't work.
 -/
-abbrev EGraphGenericIO := (λL [DecidableEq L][Hashable L][BEq L] ↦ StateT (EGraph L) IO)
+abbrev EGraphGenericIO := (λ L D [DecidableEq L][Hashable L] ↦ StateT (EGraph L D) IO)
 -- abbrev EGraphGenericIO:= (λc [DecidableEq c][Hashable c] ↦ ((λa ↦ StateT a IO) <| (λb [DecidableEq b][Hashable b] => EGraph b) <| c))
 
 
@@ -32,7 +32,7 @@ abbrev EGraphGenericIO := (λL [DecidableEq L][Hashable L][BEq L] ↦ StateT (EG
     - Creates a new EGraph, then runs the test
 -/
 
-def checkSameClass (id1 id2 : EClassId) (test : String := "") : EGraphM α <| EClassId := do
+def checkSameClass (id1 id2 : EClassId) (test : String := "") : EGraphM α D <| EClassId := do
   let c1 ← lookupCanonicalEClassId id1
   let c2 ← lookupCanonicalEClassId id2
   if c1 ≠ c2 then
@@ -43,7 +43,7 @@ def checkSameClass (id1 id2 : EClassId) (test : String := "") : EGraphM α <| EC
 
 
 -- I'm not too worried about for loops anymore...
-def printEGraph : EGraphGenericIO α <| Unit := do
+def printEGraph : EGraphGenericIO α (D := D) <| Unit := do
   let eg ← get
   IO.println "=== E-Graph State ==="
   IO.println s!"Size: {eg.uf.size}"
@@ -54,13 +54,13 @@ def printEGraph : EGraphGenericIO α <| Unit := do
   IO.println "====================\n"
   -- IO.println "\n\n"
 
-def runLine (line : EGraphM α <| EClassId) : EGraphGenericIO α <| EClassId  := do
+def runLine (line : EGraphM α D <| EClassId) : EGraphGenericIO α (D := D) <| EClassId  := do
   let s ← get
   let (res, s') := line.run s
   set s'
   return res
 
-def runLineUnit (line : EGraphM α <| Unit) : EGraphGenericIO α <| Unit  := do
+def runLineUnit (line : EGraphM α D <| Unit) : EGraphGenericIO α (D := D) <| Unit  := do
   let s ← get
   let (_res, s') := line.run s
   set s'
@@ -75,8 +75,8 @@ def runRebuild : EGraphGenericIO α <| Unit := do
   return res
 -/
 
-def runTest (test : EGraphGenericIO α <| Unit) (testName: String := ""): IO Unit := do
-  let emptyGraph : EGraph α := EGraph.empty
+def runTest (test : EGraphGenericIO α (D := D) <| Unit) (testName: String := ""): IO Unit := do
+  let emptyGraph : EGraph α D := EGraph.empty
   let _ ← test.run emptyGraph
   IO.println s!"Test {testName} Completed"
   IO.println "Test Completed"
@@ -87,12 +87,14 @@ def runTest (test : EGraphGenericIO α <| Unit) (testName: String := ""): IO Uni
 /-
 
 -/
-
 def eqSat
-      {α : Type _} [DecidableEq α] [BEq α] [Hashable α] [Repr α]
-      (rules : List (Rule α))
+      {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
+      {D : Type _}
+      [Analysis α D]
+      [Inhabited D]
+      (rules : List (Rule α D))
       (limit : Nat := 10)
-    : EGraphGenericIO α Unit := do
+    : EGraphGenericIO α (D := D) Unit := do
   let mut i := 0
   while i < limit do
     let egStart ← get
@@ -101,9 +103,9 @@ def eqSat
     let numNodesStart   := egStart.size
 
     for r in rules do
-      runLineUnit <| rewrite (α := α) (r := r)
+      runLineUnit <| rewrite (α := α) (D := D) (r := r)
 
-    runLineUnit <| rebuild
+    runLineUnit <| rebuild (Analysis.join (α := α)) (Analysis.modify)
 
     -- printEGraph
 
@@ -115,6 +117,38 @@ def eqSat
 
     i := i + 1
 
+open ExprParser
+
+/-
+  Idea: Since SExpr is structured as a list holding lists or atoms
+  If encounter atom: push the appropriate term onto the graph
+  If encounter list: get the op and the args, and recurse on the args
+
+  Since we recurse on the args with the function, and the atoms return with a push,
+  we should be returning EClassId (what push returns)
+
+  Using an EGraphM, we pass the state along the recursions. Make sure to call ← get.
+
+-/
+def buildEGFromSExpr (sx : SExpr) : EGraphM α D EClassId := do
+  match sx with
+  /-
+    Atom is all op and arg
+  -/
+  | .atom s =>
+
+    sorry
+  | .list [] =>
+    -- lift the arg strings into the appropriate versions
+    sorry
+  -- Parse elements of the list...
+  | .list (head :: tail) =>
+    match head with
+    | .atom op =>
+      -- match FromOp op with
+      -- runLine <| pushRun {head := op, args := (map buildEGFromSExpr to tail)}
+      sorry
+    | _        => panic! s!"Head of list {sx} is {head} but should be op..?"
 /-
   Note for horrendous type bug in case it happens again
   '''

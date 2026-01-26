@@ -32,7 +32,7 @@ macro "r*" lhs:term " === " rhs:term : term =>
   `({ lhs := $lhs, rhs := $rhs})
 
 -- Make it cleaner by restructuring this as smallerSet ++ (distributive rules)
-def propRules : List (Rule PropLang) := [
+def propRules : List (Rule PropLang Unit) := [
   -- Def Imply
   r* pImpl (?"a") (?"b") === pOr (pNot (?"a")) (?"b"),
   -- Imply Flip
@@ -68,7 +68,7 @@ def propRules : List (Rule PropLang) := [
 ]
 
 -- No distributive rules because that absolutely murders my laptop
-def smallerSet : List (Rule PropLang) := [
+def smallerSet : List (Rule PropLang Unit) := [
     -- Def Imply
   r* pImpl (?"a") (?"b") === pOr (pNot (?"a")) (?"b"),
   -- Imply Flip
@@ -125,21 +125,21 @@ def testContrapositive : PropIO Unit := do
 
   -- These could also be macros...
   -- Left Hand Side
-  let x ← runLine <| push {head := .sym "x", args := []}
-  let y ← runLine <| push {head := .sym "y", args := []}
-  let st← runLine <| push {head := .impl, args :=[x, y]}
+  let x ← runLine <| pushRun {head := .sym "x", args := []}
+  let y ← runLine <| pushRun {head := .sym "y", args := []}
+  let st← runLine <| pushRun {head := .impl, args :=[x, y]}
   printEGraph
   eqSat (α := PropLang) (propRules)
   printEGraph
 
   -- Check if all RHS are found
-  let nx ← runLine <| push {head := .not, args := [x]}
-  let ny ← runLine <| push {head := .not, args := [y]}
-  let nny← runLine <| push {head := .not, args :=[ny]}
-  let t1 ← runLine <| push {head := .or, args := [nx, y]}
-  let t2 ← runLine <| push {head := .or, args := [nx, nny]}
-  let t3 ← runLine <| push {head := .or, args := [nny, nx]}
-  let t4 ← runLine <| push {head := .impl, args := [ny, nx]}
+  let nx ← runLine <| pushRun {head := .not, args := [x]}
+  let ny ← runLine <| pushRun {head := .not, args := [y]}
+  let nny← runLine <| pushRun {head := .not, args :=[ny]}
+  let t1 ← runLine <| pushRun {head := .or, args := [nx, y]}
+  let t2 ← runLine <| pushRun {head := .or, args := [nx, nny]}
+  let t3 ← runLine <| pushRun {head := .or, args := [nny, nx]}
+  let t4 ← runLine <| pushRun {head := .impl, args := [ny, nx]}
 
   checkSameClassTests st t1
   checkSameClassTests st t2
@@ -156,37 +156,37 @@ def testContrapositive : PropIO Unit := do
 def testProveChain : PropIO Unit := do
   IO.println "\nTest Chain (Transitivity)"
 
-  let x  ← runLine <| push {head := .sym "x", args := []}
-  let y  ← runLine <| push {head := .sym "y", args := []}
-  let z  ← runLine <| push {head := .sym "z", args := []}
-  let xy ← runLine <| push {head := .impl, args := [x, y]}
-  let yz ← runLine <| push {head := .impl, args := [y, z]}
+  let x  ← runLine <| pushRun {head := .sym "x", args := []}
+  let y  ← runLine <| pushRun {head := .sym "y", args := []}
+  let z  ← runLine <| pushRun {head := .sym "z", args := []}
+  let xy ← runLine <| pushRun {head := .impl, args := [x, y]}
+  let yz ← runLine <| pushRun {head := .impl, args := [y, z]}
   -- LHS
-  let st ← runLine <| push {head := .and,  args := [xy, yz]}
+  let st ← runLine <| pushRun {head := .and,  args := [xy, yz]}
 
   printEGraph
   eqSat (α := PropLang) smallerSet (limit := 5)
   printEGraph
 
   -- Build RHS
-  let nx   ← runLine <| push {head := .not, args := [x]}
-  let ny   ← runLine <| push {head := .not, args := [y]}
+  let nx   ← runLine <| pushRun {head := .not, args := [x]}
+  let ny   ← runLine <| pushRun {head := .not, args := [y]}
 
   -- 1. (& (-> (~ y) (~ x)) (-> y z))
-  let ny_nx ← runLine <| push {head := .impl, args := [ny, nx]}
-  let t1    ← runLine <| push {head := .and,  args := [ny_nx, yz]}
+  let ny_nx ← runLine <| pushRun {head := .impl, args := [ny, nx]}
+  let t1    ← runLine <| pushRun {head := .and,  args := [ny_nx, yz]}
 
   -- 2. (& (-> y z) (-> (~ y) (~ x)))
-  let t2    ← runLine <| push {head := .and,  args := [yz, ny_nx]}
+  let t2    ← runLine <| pushRun {head := .and,  args := [yz, ny_nx]}
 
   -- 3. (| z (~ x))
-  let t3    ← runLine <| push {head := .or,   args := [z, nx]}
+  let t3    ← runLine <| pushRun {head := .or,   args := [z, nx]}
 
   -- 4. (| (~ x) z)
-  let t4    ← runLine <| push {head := .or,   args := [nx, z]}
+  let t4    ← runLine <| pushRun {head := .or,   args := [nx, z]}
 
   -- 5. (-> x z)
-  let t5    ← runLine <| push {head := .impl, args := [x, z]}
+  let t5    ← runLine <| pushRun {head := .impl, args := [x, z]}
 
   let _ ← runLine <| checkSameClass st t1
   let _ ← runLine <| checkSameClass st t2
@@ -200,13 +200,13 @@ def testProveChain : PropIO Unit := do
 def testConstFold : PropIO Unit := do
   IO.println "\nTest Constant Folding"
 
-  let t ← runLine <| push {head := .bool true,  args := []}
-  let f ← runLine <| push {head := .bool false, args := []}
-  let ft ← runLine <| push {head := .and, args := [f, t]}
-  let tf ← runLine <| push {head := .and, args := [t, f]}
+  let t ← runLine <| pushRun {head := .bool true,  args := []}
+  let f ← runLine <| pushRun {head := .bool false, args := []}
+  let ft ← runLine <| pushRun {head := .and, args := [f, t]}
+  let tf ← runLine <| pushRun {head := .and, args := [t, f]}
 
   -- LHS
-  let st ← runLine <| push {head := .or,  args := [ft, tf]}
+  let st ← runLine <| pushRun {head := .or,  args := [ft, tf]}
 
   printEGraph
   eqSat (α := PropLang) (propRules)

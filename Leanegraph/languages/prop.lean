@@ -1,4 +1,5 @@
-import Leanegraph.framework.helpers
+import Leanegraph.framework
+import Leanegraph.core
 
 inductive PropLang where
 | bool : Bool → PropLang
@@ -7,7 +8,7 @@ inductive PropLang where
 | not  : PropLang
 | impl : PropLang
 | sym  : String → PropLang
-deriving DecidableEq, Hashable, BEq, Repr
+deriving DecidableEq, Hashable, Repr
 
 instance : ToString PropLang where
   toString
@@ -18,4 +19,9 @@ instance : ToString PropLang where
   | .impl   => "→"
   | .sym s  => s!"{s}"
 
-abbrev PropIO := EGraphGenericIO PropLang
+instance Analysis : EGraph.Analysis PropLang Unit where
+  make    _ _ := ()
+  join    _ _ := ()
+  modify eg _ := eg
+
+abbrev PropIO := EGraphGenericIO PropLang Unit

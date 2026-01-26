@@ -1,5 +1,4 @@
-import Leanegraph.framework.helpers
-
+import Leanegraph.framework
 
 inductive Lambda where
 | bool : Bool → Lambda
@@ -27,5 +26,11 @@ instance : ToString Lambda where
   | .fix    => "fix"
   | .if_    => "if"
 
+abbrev NOA_LAMBD := Unit
 
-abbrev LambdaIO := EGraphGenericIO Lambda
+instance Analysis_LAMBDA : EGraph.Analysis Lambda NOA_LAMBD where
+  make    _ _ := ()
+  join    _ _ := ()
+  modify eg _ := eg
+
+abbrev LambdaIO := EGraphGenericIO Lambda NOA_LAMBD

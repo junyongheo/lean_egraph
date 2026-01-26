@@ -1,4 +1,4 @@
-import Leanegraph.framework.helpers
+import Leanegraph.framework
 
 /-
   We define a language for basic tests on the e-graph.
@@ -11,7 +11,7 @@ inductive AddMul where
 | var   : String → AddMul
 | add   : AddMul
 | mul   : AddMul
-deriving DecidableEq, Hashable, BEq, Repr
+deriving DecidableEq, Hashable, Repr
 
 instance : ToString AddMul where
   toString
@@ -20,7 +20,12 @@ instance : ToString AddMul where
   | .add     => "+"
   | .mul     => "*"
 
+instance Analysis : EGraph.Analysis AddMul Unit where
+  make    _  _ := ()
+  join    _  _ := ()
+  modify  eg _ := eg
+
 /-
   Pass your language like so
 -/
-abbrev EGraphIO := EGraphGenericIO AddMul
+abbrev EGraphIO := EGraphGenericIO AddMul Unit

@@ -1,5 +1,5 @@
-import Leanegraph.core.egraphs
-import Leanegraph.framework.helpers
+import Leanegraph.core
+import Leanegraph.framework
 import Leanegraph.languages.addmul
 
 open EGraph
@@ -25,9 +25,9 @@ def testPushOperation : EGraphIO Unit := do
   IO.println "Test Push"
   printEGraph
 
-  let _ ← runLine <| push { head := AddMul.var "a", args := []}
-  let _ ← runLine <| push { head := AddMul.var "b", args := []}
-  let _ ← runLine <| push { head := AddMul.var "c", args := []}
+  let _ ← runLine <| pushRun { head := AddMul.var "a", args := []}
+  let _ ← runLine <| pushRun { head := AddMul.var "b", args := []}
+  let _ ← runLine <| pushRun { head := AddMul.var "c", args := []}
 
   printEGraph
 
@@ -40,11 +40,11 @@ def testUnionOperation : EGraphIO Unit := do
   IO.println "\nBefore: "
   printEGraph
 
-  let a ← runLine <| push { head := AddMul.var "a", args := [] }
-  let b ← runLine <| push { head := AddMul.var "b", args := [] }
-  let _ ← runLine <| push { head := AddMul.var "c", args := [] }
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := [] }
+  let b ← runLine <| pushRun { head := AddMul.var "b", args := [] }
+  let _ ← runLine <| pushRun { head := AddMul.var "c", args := [] }
 
-  let _ ← runLine <| union a b
+  let _ ← runLine <| unionRun a b
 
   -- Panics if not same class
   let c1 ← runLine <| checkSameClass a b "Union Test"
@@ -74,13 +74,13 @@ def runBatchTests (allTests : List (EGraphIO Unit)) : IO Unit := do
 
 /-
   Test HashCons
-  In other words, if we push var "a" twice, does it get hashcons'd or duplicated?
+  In other words, if we pushRun var "a" twice, does it get hashcons'd or duplicated?
 -/
 def testHashCons : EGraphIO Unit := do
   IO.println "Test Hashconsing"
 
-  let a₁ ← runLine <| push { head := AddMul.var "a", args := [] }
-  let a₂ ← runLine <| push { head := AddMul.var "a", args := [] }
+  let a₁ ← runLine <| pushRun { head := AddMul.var "a", args := [] }
+  let a₂ ← runLine <| pushRun { head := AddMul.var "a", args := [] }
 
   let _ ← runLine <| checkSameClass a₁ a₂ "HashCons"
 
@@ -96,19 +96,19 @@ def testHashCons : EGraphIO Unit := do
 def testCongruence : EGraphIO Unit := do
   IO.println "Test Congruence Closure"
 
-  let a ← runLine <| push { head := AddMul.var "a", args := [] }
-  let b ← runLine <| push { head := AddMul.var "b", args := [] }
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := [] }
+  let b ← runLine <| pushRun { head := AddMul.var "b", args := [] }
 
   printEGraph
 
-  let fa ← runLine <| push { head := AddMul.add, args := [a] }
-  let fb ← runLine <| push { head := AddMul.add, args := [b] }
+  let fa ← runLine <| pushRun { head := AddMul.add, args := [a] }
+  let fb ← runLine <| pushRun { head := AddMul.add, args := [b] }
 
   printEGraph
 
-  let _ ← runLine <| union a b
+  let _ ← runLine <| unionRun a b
 
-  let _ ← runLineUnit <| rebuild
+  let _ ← runLineUnit <| rebuildRun
 
   printEGraph
 
@@ -132,18 +132,18 @@ def testCongruence : EGraphIO Unit := do
 def testCongruencePropagation : EGraphIO Unit := do
   IO.println "Test Nested Congruence"
 
-  let a ← runLine <| push { head := AddMul.var "a", args := [] }
-  let b ← runLine <| push { head := AddMul.var "b", args := [] }
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := [] }
+  let b ← runLine <| pushRun { head := AddMul.var "b", args := [] }
 
-  let fa ← runLine <| push { head := AddMul.add, args := [a] }
-  let fb ← runLine <| push { head := AddMul.add, args := [b] }
+  let fa ← runLine <| pushRun { head := AddMul.add, args := [a] }
+  let fb ← runLine <| pushRun { head := AddMul.add, args := [b] }
 
-  let ga ← runLine <| push { head := AddMul.mul, args := [fa] }
-  let gb ← runLine <| push { head := AddMul.mul, args := [fb] }
+  let ga ← runLine <| pushRun { head := AddMul.mul, args := [fa] }
+  let gb ← runLine <| pushRun { head := AddMul.mul, args := [fb] }
 
-  let _ ← runLine <| union a b
+  let _ ← runLine <| unionRun a b
 
-  let _ ← runLineUnit <| rebuild
+  let _ ← runLineUnit <| rebuildRun
 
   let _ ← runLine <| checkSameClass ga gb "Nested congruence"
 
@@ -157,14 +157,14 @@ def testCongruencePropagation : EGraphIO Unit := do
 def testUnionTransitive : EGraphIO Unit := do
   IO.println "Test Union Transitivity"
 
-  let a ← runLine <| push { head := AddMul.var "a", args := [] }
-  let b ← runLine <| push { head := AddMul.var "b", args := [] }
-  let c ← runLine <| push { head := AddMul.var "c", args := [] }
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := [] }
+  let b ← runLine <| pushRun { head := AddMul.var "b", args := [] }
+  let c ← runLine <| pushRun { head := AddMul.var "c", args := [] }
 
-  let _ ← runLine <| union a b
-  let _ ← runLine <| union b c
+  let _ ← runLine <| unionRun a b
+  let _ ← runLine <| unionRun b c
 
-  let _ ← runLineUnit <| rebuild
+  let _ ← runLineUnit <| rebuildRun
 
   let _ ← runLine <| checkSameClass a c "Union transitive"
 
@@ -187,17 +187,17 @@ def EGraphOperationTests := [
 
 -- Just curious if this works
 def testCycle : EGraphIO Unit := do
-  let a ← runLine <| push { head := AddMul.var "a", args := []}
-  let o ← runLine <| push { head := AddMul.lit 1, args := []}
-  let b ← runLine <| push { head := AddMul.add, args := [a,o]}
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := []}
+  let o ← runLine <| pushRun { head := AddMul.lit 1, args := []}
+  let b ← runLine <| pushRun { head := AddMul.add, args := [a,o]}
 
   printEGraph
 
-  let _ ← runLine <| union a b
+  let _ ← runLine <| unionRun a b
 
   printEGraph
 
-  let _ ← runLineUnit <| rebuild
+  let _ ← runLineUnit <| rebuildRun
 
   printEGraph
 

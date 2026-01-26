@@ -1,6 +1,7 @@
 import Leanegraph.core.egraphs
 
-variable {α : Type _} [BEq α] [DecidableEq α] [Hashable α]
+variable {α : Type _} [DecidableEq α] [Hashable α]
+variable {D : Type _} [Inhabited D]
 
 namespace EGraph
 
@@ -27,35 +28,39 @@ namespace EGraph
   ```
   I think this should work...
 -/
+
+-- https://proofassistants.stackexchange.com/questions/2444/does-lean-4-have-built-in-dictionary-types
+abbrev Dict α [DecidableEq α] [Hashable α] := Std.HashMap /-(Pattern α)-/ String EClassId
+
+
 inductive Pattern (α : Type _) where
 | PatTerm : (head : α) → (args : List <| Pattern α) → Pattern α
 | PatVar : String → Pattern α
-deriving Repr, BEq, Hashable --why decideableeq not work, look into
+deriving Repr, Hashable --why decideableeq not work, look into
 
 
-inductive Condition (α : Type _) where
-| Equal : Pattern α → Pattern α → Condition α
-| NotEqual : Pattern α → Pattern α → Condition α
-deriving BEq, Repr
+inductive Condition (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
+| Equal        : Pattern α → Pattern α           → Condition α D
+| NotEqual     : Pattern α → Pattern α           → Condition α D
+| CustomLookup : (Dict   α → EGraphM α D (Bool)) → Condition α D
+-- deriving BEq, Repr
 
--- https://proofassistants.stackexchange.com/questions/2444/does-lean-4-have-built-in-dictionary-types
-abbrev Dict α [BEq α] [DecidableEq α] [Hashable α] := Std.HashMap /-(Pattern α)-/ String EClassId
 
 -- https://unreasonableeffectiveness.com/learning-lean-4-as-a-programming-language-4-proofs/
 -- https://unreasonableeffectiveness.com/learning-lean-4-as-a-programming-language-2-infinite-lists/
 -- Some things on laziness and lists...
 
-structure Rule (α : Type _) where
+structure Rule (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
   lhs : Pattern α
   rhs : Pattern α
-  cnd : List (Condition α) := []
-deriving Repr -- I don't think other derivations required
+  cnd : List (Condition α D) := []
+-- deriving Repr -- I don't think other derivations required
 
 
 
 
 mutual
-def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : EGraphM α <| List <| Dict α := do
+def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : EGraphM α D <| List <| Dict α := do
   match pl, idl with
   | [], [] => return [d]
   | p :: ps, id :: ids =>
@@ -69,7 +74,7 @@ def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : E
 
 
 
-def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α <| List <| Dict α := do
+def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α D <| List <| Dict α := do
   let canonId ← lookupCanonicalEClassId id
   match p with
   | Pattern.PatVar var =>
@@ -122,17 +127,17 @@ def ematch (eg : EGraph α) (p : Pattern α) (id : EClassId) (d : Dict α) : (Li
 end
 -/
 
-def instantiate (p : Pattern α) (d : Dict α) : EGraphM α <| EClassId := do
+def instantiate [Analysis α D] (p : Pattern α) (d : Dict α) : EGraphM α D <| EClassId := do
   match p with
   | Pattern.PatVar var => return d.get! var
   | Pattern.PatTerm phead pargs =>
     -- push ⟨phead, List.map (λ a => instantiate a d) pargs⟩ -- maybe do this in multiple steps -- and in a monadmap
     let newArgs ← pargs.mapM (λ a => instantiate a d)
-    push ⟨phead, newArgs⟩
+    push ⟨phead, newArgs⟩ Analysis.make
     -- push ⟨phead, ← pargs.mapM (λ a ↦ instantiate a d)⟩ -- can be done in one step like this
     -- still keep the two line definition for readability
 
-def checkCondition (c : Condition α) (d : Dict α) : EGraphM α <| Bool := do
+def checkCondition [Analysis α D] (c : Condition α D) (d : Dict α) : EGraphM α D <| Bool := do
   match c with
   | Condition.Equal p1 p2 =>
     let id₁ ← lookupCanonicalEClassId (← instantiate p1 d)
@@ -142,8 +147,12 @@ def checkCondition (c : Condition α) (d : Dict α) : EGraphM α <| Bool := do
     let id₁ ← lookupCanonicalEClassId (← instantiate p1 d)
     let id₂ ← lookupCanonicalEClassId (← instantiate p2 d)
     return id₁ ≠ id₂
+  | Condition.CustomLookup fn =>
+    let b ← fn d
+    return b
 
-def rewrite (r : Rule α) : EGraphM α <| Unit := do
+
+def rewrite {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] (r : Rule α D) : EGraphM α D <| Unit := do
   let eg ← get
 
   let searchOp : List EClassId :=
@@ -162,9 +171,11 @@ def rewrite (r : Rule α) : EGraphM α <| Unit := do
 
   )
 
+  let joinFn := Analysis.join (α := α) (D := D)
+
   condTrue.forM (λ (lhsId, sub) => do
     let rhsId ← instantiate r.rhs sub
-    let _     ← union lhsId rhsId
+    let _     ← union lhsId rhsId joinFn
   )
 
 
@@ -183,7 +194,7 @@ end
 
 /-
 -- Oh great more monads
-def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α (List <| Dict α) := do
+def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α D (List <| Dict α) := do
   let eg ← get
   match p with
   | Pattern.PatVar var =>

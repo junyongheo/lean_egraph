@@ -1,7 +1,7 @@
-import Leanegraph.core.egraphs
-import Leanegraph.core.rewrite
+import Leanegraph.core
 
 variable {α : Type _} [DecidableEq α] [BEq α][Hashable α] [Repr α]
+variable {D : Type _} [Inhabited D]
 
 namespace EGraph
 
@@ -27,7 +27,7 @@ def compareCosts (c : costBundle α) (cur : costBundle α) : (costBundle α) :=
   else
     (cur)
 
-def childCosts (eg : EGraph α) (cm : costMap α) (children : List EClassId) : Option <| List Nat :=
+def childCosts (eg : EGraph α D) (cm : costMap α) (children : List EClassId) : Option <| List Nat :=
   match children with
   | []                => some []
   | child :: children =>
@@ -42,13 +42,13 @@ def childCosts (eg : EGraph α) (cm : costMap α) (children : List EClassId) : O
         cur :: list
     | none   => none
 
-def calcNodeCost (eg : EGraph α) (cm : costMap α) (en : ENode α) (fn : costFn α) : Option <| costBundle α :=
+def calcNodeCost (eg : EGraph α D) (cm : costMap α) (en : ENode α) (fn : costFn α) : Option <| costBundle α :=
   match (childCosts eg cm en.args) with
   | none => none
   | some val => ((fn en.head) + val.sum, en)
 
 -- Gets lowest cost × node pairing for a certain eclass
-def iterateNode (eg : EGraph α) (ecls : EClass α) (cm : costMap α) (fn : costFn α) : Option <| costBundle α :=
+def iterateNode (eg : EGraph α D) (ecls : EClass α D) (cm : costMap α) (fn : costFn α) : Option <| costBundle α :=
   ecls.nodes.foldl (init := none) (λ curMin nd =>
     let curCost := calcNodeCost eg cm nd fn
     match curCost with
@@ -64,7 +64,7 @@ def iterateNode (eg : EGraph α) (ecls : EClass α) (cm : costMap α) (fn : cost
   -- lowestCost
 
 
-partial def extract (eg : EGraph α) (fn : costFn α) : costMap α :=
+partial def extract (eg : EGraph α D) (fn : costFn α) : costMap α :=
 
   let rec loop (cm : costMap α) : costMap α :=
     let (newMap, changed) : (costMap α × Bool) :=
