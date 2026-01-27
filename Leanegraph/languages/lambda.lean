@@ -11,7 +11,7 @@ inductive Lambda where
 | let_ : Lambda
 | fix  : Lambda
 | if_  : Lambda
-deriving DecidableEq, Hashable, BEq, Repr
+deriving DecidableEq, Hashable, Repr
 
 instance : ToString Lambda where
   toString

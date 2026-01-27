@@ -10,7 +10,7 @@ import Leanegraph.framework.extraction
 
 open EGraph
 
-variable {α : Type _} [DecidableEq α] [BEq α] [Hashable α]
+variable {α : Type _} [DecidableEq α] [Hashable α]
 
 /-
   Helpers for the AddMul Language

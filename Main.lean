@@ -22,4 +22,6 @@ def main : IO Unit := do
   let _ ← runTest testConstFold      "Constant Fold"
   -/
   -- let _ ← runTest testAnalysisCF "CF"
-  let _ ← runTest math_simplify_factor "Folds"
+  let _ ← runTest integ_part1 "Folds"
+  let _ ← runTest integ_part2 "aehea"
+  let _ ← runTest integ_part3 "ateha"

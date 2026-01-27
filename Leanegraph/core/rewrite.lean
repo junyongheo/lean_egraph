@@ -43,7 +43,7 @@ inductive Condition (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] wh
 | Equal        : Pattern α → Pattern α           → Condition α D
 | NotEqual     : Pattern α → Pattern α           → Condition α D
 | CustomLookup : (Dict   α → EGraphM α D (Bool)) → Condition α D
--- deriving BEq, Repr
+-- deriving Repr
 
 
 -- https://unreasonableeffectiveness.com/learning-lean-4-as-a-programming-language-4-proofs/

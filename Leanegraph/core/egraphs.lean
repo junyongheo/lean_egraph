@@ -3,7 +3,7 @@ import Batteries.Data.UnionFind
 /-
   Implementations of E-Node, E-Class, E-Graph and functions that operate on them
 -/
-variable {α : Type _} [DecidableEq α] [BEq α][Hashable α] [Repr α]
+variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
 variable {D : Type _} [Inhabited D]
 
 namespace EGraph
@@ -16,7 +16,7 @@ abbrev EClassId := Nat
 structure ENode (α : Type _ ) where
   head : α
   args : List EClassId
-deriving Hashable, DecidableEq, BEq, Repr
+deriving Hashable, DecidableEq, Repr
 
 /-
   EClasses hold a list of equivalent nodes and a list of parents
@@ -35,7 +35,7 @@ deriving Repr
     E-class Map M - Map of *e-class ids to e-classes*
     Hashcons H - Map of *e-nodes to e-class ids*
 -/
-structure EGraph (α : Type _) (D : Type _) [DecidableEq α][BEq α] [Hashable α] where
+structure EGraph (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
   uf    : Batteries.UnionFind
   ecmap : Std.HashMap EClassId (EClass α D)
   hcons : Std.HashMap (ENode α) EClassId
@@ -50,7 +50,7 @@ instance [Inhabited D] : Inhabited (EClass α D) where
     data := default
   }
 
-class Analysis (α : Type _) (D : Type _)  [DecidableEq α][BEq α] [Hashable α] where
+class Analysis (α : Type _) (D : Type _)  [DecidableEq α][Hashable α] where
   /- When a new e-node 𝑛 is added to 𝐺 into a new,
   singleton e-class 𝑐, construct a new value 𝑑𝑐 ∈ 𝐷
   to be associated with 𝑛’s new e-class,
@@ -153,7 +153,7 @@ def EGraph.empty : EGraph α D:=
 /-
   State monad for e-graph
 -/
-abbrev EGraphM (α : Type _) (D : Type _) [DecidableEq α] [BEq α] [Hashable α] := StateM (EGraph α D)
+abbrev EGraphM (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] := StateM (EGraph α D)
 
 /-
 -- I think a runtime panic is better since we know something is wrong instead
@@ -384,8 +384,9 @@ def repair (id : EClassId) (join : D → D → D) : EGraphM α D (Unit) := do
       return parents'.insert canon canonId
   )
   let eg' ← get
-  let eClassFinal := eg'.ecmap.get! canonId
-  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId { eClassFinal with parents := newParents.toList, nodes := newNodes },}
+  let canonId' ←  (lookupCanonicalEClassId canonId)
+  let eClassFinal := eg'.ecmap.get! canonId' -- needs to be canonicalised again
+  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal with parents := newParents.toList, nodes := newNodes },}
 
 
 /-

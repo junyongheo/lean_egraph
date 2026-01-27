@@ -1,6 +1,6 @@
 import Leanegraph.core
 
-variable {α : Type _} [DecidableEq α] [BEq α][Hashable α] [Repr α]
+variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
 variable {D : Type _} [Inhabited D]
 
 namespace EGraph
