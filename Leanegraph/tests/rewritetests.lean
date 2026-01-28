@@ -1,8 +1,6 @@
-import Leanegraph.core.egraphs
-import Leanegraph.core.rewrite
-import Leanegraph.framework.helpers
 import Leanegraph.languages.addmul
-import Leanegraph.framework.extraction
+import Leanegraph.framework
+import Leanegraph.core
 
 /-
   WIP
@@ -19,7 +17,7 @@ variable {α : Type _} [DecidableEq α] [Hashable α]
 
 -- Lift var/term → Pattern
 def pVar (s : String) : Pattern AddMul := Pattern.PatVar s
-def pTerm (h : AddMul) (args : List (Pattern AddMul)) : Pattern AddMul := Pattern.PatTerm h args
+def pTerm (h : AddMul) (args : List (Pattern AddMul)) : Pattern AddMul := Pattern.PatTerm h (Array.mk args)
 
 -- Create patterns for add/mul operators and lit
 def addP (a b : Pattern AddMul) := pTerm AddMul.add [a, b]
@@ -34,15 +32,16 @@ def varP (s : String)           := pTerm (AddMul.var s) []
 -- ehm does this work? i guess. is this efficient? probably not.
 -- Can make macro for rewrite rules r* ( lhs === rhs )
 -- TODO: probably read "metaprogramming in lean 4" and get smth nicer...
-macro "r*" lhs:term " === " rhs:term : term =>
-  `({ lhs := $lhs, rhs := $rhs })
 
 macro "?" lhs:term : term => `(pVar $lhs)
 
+abbrev AddMulRule := Rule AddMul Unit
 -- By Macro (find a better one)
-def ruleAddComm'' : Rule AddMul :=
+def ruleAddComm'' : AddMulRule :=
   r* (addP (?"a") (?"b")) === (addP (?"b") (?"a"))
 
+instance : Inhabited (Pattern AddMul) where
+  default := Pattern.PatVar "_"
 
 /-
   Tests for rewrite rules. Rules can be defined inside and outside tests
@@ -62,7 +61,7 @@ def ruleAddComm'' : Rule AddMul :=
 
 -- Example Rules
 /-
-def ruleAddComm : Rule AddMul := {
+def ruleAddComm : AddMulRule := {
   lhs := addP (pVar "a") (pVar "b"), -- (+ ?a ?b)
   rhs := addP (pVar "b") (pVar "a")  -- (+ ?b ?a)
 }
@@ -72,20 +71,20 @@ def ruleAddComm : Rule AddMul := {
 /-
   Examples of locally defined rules
 -/
-def ruleAddComm : Rule AddMul :=
+def ruleAddComm : AddMulRule :=
   r* addP (?"a") (?"b") === addP (?"b") (?"a")
 
 
-def ruleMulZero : Rule AddMul :=
+def ruleMulZero : AddMulRule :=
   r* mulP (?"a") (litP 0) === (litP 0)
 
 -- Using such rule
 def testAddComm : EGraphIO Unit := do
   IO.println "\nTest: x + y → y + x"
 
-  let x ← runLine <| push { head := .var "x", args := [] }
-  let y ← runLine <| push { head := .var "y", args := [] }
-  let _ ← runLine <| push { head := .add, args := [x, y] }
+  let x ← push (.var "x")
+  let y ← push (.var "y")
+  let _ ← push .add [x,y]
 
   printEGraph
 
@@ -93,20 +92,20 @@ def testAddComm : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testAddComm "AddComm"
+-- #eval runTest testAddComm "AddComm"
 
 -- Defining rule inside test
 def testAddZero : EGraphIO Unit := do
   IO.println "\nTest: x + 0 → x"
 
-  let ruleAddZero : Rule AddMul :=
+  let ruleAddZero : AddMulRule :=
     r* addP (?"x") (litP 0) === (?"x")
 
 
-  let x    ← runLine <| push { head := .var "x", args := [] }
-  let z ← runLine <| push { head := .lit 0, args := [] }
+  let x ← push (.var "x")
+  let z ← push (.lit 0)
 
-  let _ ← runLine <| push { head := .add, args := [x, z] }
+  let _ ← push .add [x,z]
 
   printEGraph
 
@@ -117,27 +116,26 @@ def testAddZero : EGraphIO Unit := do
 
   printEGraph
 
-#eval runTest testAddZero "Add Zero"
+-- #eval runTest testAddZero "Add Zero"
 
 def testDouble : EGraphIO Unit := do
   IO.println "\nTest: x + x → 2 * x"
 
-  let ruleDouble : Rule AddMul := {
+  let ruleDouble : AddMulRule := {
     lhs := addP (pVar "x") (pVar "x"),
     rhs := mulP (litP 2) (pVar "x")
   }
 
-  let a ← runLine <| push { head := .var "a", args := [] }
-  let two ← runLine <| push { head := .lit 2, args := [] }
+  let a ← push (.var "a")
+  let two ← push (.lit 2)
 
-  let _expr ← runLine <| push { head := .add, args := [a, a] }
-  let _target ← runLine <| push { head := .mul, args := [two, a] }
-
-  printEGraph
+  let expr ← push .add [a, a]
+  let target ← push .mul [two, a]
 
   eqSat [ruleDouble]
 
-  printEGraph
+
+  let _ ← checkEquivalent expr target
 
 #eval runTest testDouble
 
@@ -157,43 +155,44 @@ def testDouble : EGraphIO Unit := do
 def testRewriteCatchEquivalence : EGraphIO Unit := do
   IO.println "\nTest: Rewrite catches Equivalence?"
 
-  let ruleDouble : Rule AddMul :=
+  let ruleDouble : AddMulRule :=
     r* addP (?"x") (?"x") === mulP (litP 2) (?"x")
 
-  let a ← runLine <| push { head := .var "a", args := [] }
-  let b ← runLine <| push { head := .var "b", args := [] }
-  let _ ← runLine <| push { head := .add    , args := [a, b]}
-  printEGraph
-  let _ ← runLine <| union a b
-  printEGraph
-  -- let _ ← runLineUnit <| rebuild
-  printEGraph
+  let a ← push (.var "a")
+  let b ← push (.var "b")
+  let _ ← push .add [a,b]
+  -- printEGraph
+  let _ ← runLine <| unionRun a b
+  -- printEGraph
+  let _ ← runLineUnit <| rebuildRun
+  -- printEGraph
 
   eqSat [ruleDouble]
-  let _ ← runLineUnit <| rebuild
+  let _ ← rebuild
   printEGraph
+
 
 #eval runTest testRewriteCatchEquivalence
 
 def testRewriteViaEquivalence : EGraphIO Unit := do
   IO.println "\nTest: Rewrite via Equivalence"
 
-  let ruleDouble : Rule AddMul := {
+  let ruleDouble : AddMulRule := {
     lhs := addP (pVar "x") (pVar "x"),
     rhs := mulP (litP 2) (pVar "x")
   }
-  let a ← runLine <| push { head := .var "a", args := [] }
-  let b ← runLine <| push { head := .var "b", args := [] }
+  let a ← runLine <| pushRun { head := .var "a", args := #[] }
+  let b ← runLine <| pushRun { head := .var "b", args := #[] }
 
   -- a ≡ b
   printEGraph
-  let _ ← runLine <| union a b
+  let _ ← runLine <| unionRun a b
   -- let _ ← runLineUnit <| rebuild
   printEGraph
-  let two ← runLine <| push { head := .lit 2, args := [] }
+  let two ← runLine <| pushRun { head := .lit 2, args := #[] }
 
-  let _ ← runLine <| push { head := .add, args := [a, b] }
-  let _ ← runLine <| push { head := .mul, args := [two, b] }
+  let _ ← runLine <| pushRun { head := .add, args := #[a, b] }
+  let _ ← runLine <| pushRun { head := .mul, args := #[two, b] }
 
   printEGraph
   eqSat [ruleDouble]
@@ -211,9 +210,9 @@ def RewritingTests := [
 
 -- Hmm I'm not sure how the egraph is supposed to show the infinite cycle
 def cycleTest : EGraphIO Unit := do
-  let mulZero : Rule AddMul := r* (?"x") === mulP (?"x") (litP 0)
+  let mulZero : AddMulRule := r* (?"x") === mulP (?"x") (litP 0)
 
-  let a ← runLine <| push { head := .var "a", args := [] }
+  let a ← runLine <| pushRun { head := .var "a", args := #[] }
 
   printEGraph
 

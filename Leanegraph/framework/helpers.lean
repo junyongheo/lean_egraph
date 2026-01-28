@@ -72,6 +72,47 @@ def runLineUnit (line : EGraphM α D <| Unit) : EGraphGenericIO α (D := D) <| U
   set s'
   return
 
+def getMatches
+
+  {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
+  {D : Type _}
+  [Analysis α D]
+  [Inhabited D]
+  [Inhabited (Pattern α)]
+
+  (rules : Array (Rule α D))
+  : EGraphM α D <| Array (Rule α D × EClassId × Dict α) := do
+
+
+  -- let eg ← get
+  -- let mut allMatches : Array (EClassId × Dict α) := #[]
+  /-
+  for r in rules do
+    let myMatches ← rewrite_search (α := α) (D := D) (r := r)
+  -/
+
+  return ← rules.flatMapM (λ r => do
+     rewrite_search (α := α) (D := D) (r := r)
+  )
+
+def writeMatches
+
+    {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
+    {D : Type _}
+    [Analysis α D]
+    [Inhabited D]
+    [Inhabited (Pattern α)]
+
+    (ruleMatches : Array (Rule α D × EClassId × Dict α))
+    : EGraphM α D <| Unit := do
+
+  let joinFn := Analysis.join (α := α) (D := D)
+  for (curRule, curECID, curSub) in ruleMatches do
+      let rhsId ← instantiate curRule.rhs curSub
+      let _     ← union curECID rhsId joinFn
+
+
+
 def eqSat
       {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
       {D : Type _}
@@ -84,20 +125,31 @@ def eqSat
       (nodeLimit : Nat := 0)
     : EGraphGenericIO α (D := D) Unit := do
   let mut i := 0
+  let arrules := rules.toArray
+  let _ ← runLineUnit <| rebuild (Analysis.join (α := α) (D := D)) Analysis.modify
   while i < limit do
+
+    let _ ← runLineUnit <| rebuildOpMap
+
     let egStart ← get
 
     let numClassesStart := egStart.uf.size
     let numNodesStart   := egStart.size
 
-    for r in rules do
-      runLineUnit <| rewrite (α := α) (D := D) (r := r)
+    -- search phase
+    let (ruleMatches, egSearch) := (getMatches arrules).run egStart
 
-    runLineUnit <| rebuild (Analysis.join (α := α)) (Analysis.modify)
+    -- write phase
+    let (_, egWrite) := (writeMatches ruleMatches).run egSearch
+
+
+
+    let (_, egEnd) := (rebuild (Analysis.join (α := α)) (Analysis.modify)).run egWrite
 
     -- printEGraph
 
-    let egEnd ← get
+    set egEnd
+
     let numClassesEnd := egEnd.uf.size
     let numNodesEnd   := egEnd.size
     if numClassesStart == numClassesEnd && numNodesStart == numNodesEnd then
@@ -105,9 +157,7 @@ def eqSat
     if (nodeLimit > 0 ∧ egEnd.size > nodeLimit) then return ()
 
     -- IO.println s!"Jebal jom {i}"
-    let _ ← runLineUnit <| rebuildOpMap
     i := i + 1
-
 
 
 

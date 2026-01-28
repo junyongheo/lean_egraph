@@ -1,4 +1,5 @@
 import Leanegraph.framework
+import Leanegraph.core
 
 /-
   We define a language for basic tests on the e-graph.

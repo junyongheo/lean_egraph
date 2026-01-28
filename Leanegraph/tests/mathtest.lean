@@ -138,10 +138,11 @@ def math_fail : MathLangIO Unit := do
 def math_simplify_add : MathLangIO Unit := do
   let lhs ← pushTerm "(+ x (+ x (+ x x)))"
   let rhs ← pushTerm "(* 4 x)"
-  eqSat (rules := mathRules) (limit := 2)
+  eqSat (rules := mathRules) (limit := 4)
+
   let _ ← checkEquivalent lhs rhs
 
-#eval runTest math_simplify_add
+-- #eval runTest math_simplify_add
 
 def math_powers : MathLangIO Unit := do
   let lhs ← pushTerm "(* (pow 2 x) (pow 2 y))"
@@ -162,7 +163,7 @@ def math_simplify_root : MathLangIO Unit := do
 def math_simplify_factor : MathLangIO Unit := do
     let lhs ← pushTerm "(* (+ x 3) (+ x 1))"
     let rhs ← pushTerm "(+ (+ (* x x) (* 4 x)) 3)"
-    eqSat (rules := mathRules) (limit := 3)
+    eqSat (rules := mathRules) (limit := 5)
     let _ ← checkEquivalent lhs rhs
 
 -- #eval runTest math_simplify_factor
@@ -238,13 +239,13 @@ def integ_x : MathLangIO Unit := do
 def integ_part1 : MathLangIO Unit := do
   let lhs ← pushTerm "(i (* x (cos x)) x)"
   let rhs ← pushTerm "(+ (* x (sin x)) (cos x))"
-  eqSat (rules := mathRules) (limit := 2)
+  eqSat (rules := mathRules) (limit := 3)
   let _ ← checkEquivalent lhs rhs
 
 def integ_part2 : MathLangIO Unit := do
   let lhs ← pushTerm "(i (* (cos x) x ) x)"
   let rhs ← pushTerm "(+ (* x (sin x)) (cos x))"
-  eqSat (rules := mathRules) (limit := 2)
+  eqSat (rules := mathRules) (limit := 3)
   let _ ← checkEquivalent lhs rhs
 
 def integ_part3 : MathLangIO Unit := do

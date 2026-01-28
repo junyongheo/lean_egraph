@@ -131,7 +131,7 @@ end
 
 def instantiate [Analysis α D] (p : Pattern α) (d : Dict α) : EGraphM α D <| EClassId := do
   match p with
-  | Pattern.PatVar var => return d.get! var
+  | Pattern.PatVar var => return ← lookupCanonicalEClassId (d.get! var)
   | Pattern.PatTerm phead pargs =>
     -- push ⟨phead, List.map (λ a => instantiate a d) pargs⟩ -- maybe do this in multiple steps -- and in a monadmap
     let newArgs ← pargs.mapM (λ a => instantiate a d)
@@ -154,34 +154,32 @@ def checkCondition [Analysis α D] (c : Condition α D) (d : Dict α) : EGraphM 
     return b
 
 
-def rewrite {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) : EGraphM α D <| Unit := do
+def rewrite_search {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) : EGraphM α D <| Array (Rule α D × EClassId × Dict α) := do
   let eg ← get
 
-  let searchOp : List EClassId :=
+  -- Search
+  let searchOp : Array EClassId :=
     match r.lhs with
     | Pattern.PatTerm head _ =>
-        (eg.opmap.getD head #[]).toList
+        (eg.opmap.getD head #[])
     | Pattern.PatVar _ =>
-        eg.ecmap.toList.map Prod.fst
+        eg.ecmap.toArray.map Prod.fst
 
-  let pMatches : List (EClassId × Dict α) ← searchOp.flatMapM (λ id => do
+  let pMatches : Array (Rule α D × EClassId × Dict α) ← searchOp.flatMapM (λ id => do
       let subs ← (ematch r.lhs (← lookupCanonicalEClassId id) Std.HashMap.emptyWithCapacity)
-      return (subs.map (λ sub => (id, sub))).toList)
+      return subs.map (λ sub => (r, id, sub)))
 
-  let condTrue ← pMatches.filterM (λ (_, d) => do
+  return (← pMatches.filterM (λ (r, _, d) => do
     r.cnd.allM (λc => checkCondition c d)
+  ))
 
-  )
 
+def rewrite_apply {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) (condTrue : Array (EClassId × Dict α)) : EGraphM α D <| Unit := do
   let joinFn := Analysis.join (α := α) (D := D)
-
   condTrue.forM (λ (lhsId, sub) => do
     let rhsId ← instantiate r.rhs sub
     let _     ← union lhsId rhsId joinFn
   )
-
-
-  -- rebuild
 
 
 
