@@ -125,7 +125,7 @@ def math_simplify_const : MathLangIO Unit := do -- takes 3 iterations, use as be
   ]) (limit := 3)
   printEGraph
   let _ ← checkEquivalent st gl
--- #eval runTest test1
+-- #eval runTest math_simplify_const
 
 def math_fail : MathLangIO Unit := do
   let lhs ← pushTerm "(+ x y)"

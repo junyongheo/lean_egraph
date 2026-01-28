@@ -25,9 +25,9 @@ def testPushOperation : EGraphIO Unit := do
   IO.println "Test Push"
   printEGraph
 
-  let _ ← runLine <| pushRun { head := AddMul.var "a", args := []}
-  let _ ← runLine <| pushRun { head := AddMul.var "b", args := []}
-  let _ ← runLine <| pushRun { head := AddMul.var "c", args := []}
+  let _ ← runLine <| pushRun { head := AddMul.var "a", args := #[]}
+  let _ ← runLine <| pushRun { head := AddMul.var "b", args := #[]}
+  let _ ← runLine <| pushRun { head := AddMul.var "c", args := #[]}
 
   printEGraph
 
@@ -40,9 +40,9 @@ def testUnionOperation : EGraphIO Unit := do
   IO.println "\nBefore: "
   printEGraph
 
-  let a ← runLine <| pushRun { head := AddMul.var "a", args := [] }
-  let b ← runLine <| pushRun { head := AddMul.var "b", args := [] }
-  let _ ← runLine <| pushRun { head := AddMul.var "c", args := [] }
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := #[] }
+  let b ← runLine <| pushRun { head := AddMul.var "b", args := #[] }
+  let _ ← runLine <| pushRun { head := AddMul.var "c", args := #[] }
 
   let _ ← runLine <| unionRun a b
 
@@ -79,8 +79,8 @@ def runBatchTests (allTests : List (EGraphIO Unit)) : IO Unit := do
 def testHashCons : EGraphIO Unit := do
   IO.println "Test Hashconsing"
 
-  let a₁ ← runLine <| pushRun { head := AddMul.var "a", args := [] }
-  let a₂ ← runLine <| pushRun { head := AddMul.var "a", args := [] }
+  let a₁ ← runLine <| pushRun { head := AddMul.var "a", args := #[] }
+  let a₂ ← runLine <| pushRun { head := AddMul.var "a", args := #[] }
 
   let _ ← runLine <| checkSameClass a₁ a₂ "HashCons"
 
@@ -96,13 +96,13 @@ def testHashCons : EGraphIO Unit := do
 def testCongruence : EGraphIO Unit := do
   IO.println "Test Congruence Closure"
 
-  let a ← runLine <| pushRun { head := AddMul.var "a", args := [] }
-  let b ← runLine <| pushRun { head := AddMul.var "b", args := [] }
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := #[] }
+  let b ← runLine <| pushRun { head := AddMul.var "b", args := #[] }
 
   printEGraph
 
-  let fa ← runLine <| pushRun { head := AddMul.add, args := [a] }
-  let fb ← runLine <| pushRun { head := AddMul.add, args := [b] }
+  let fa ← runLine <| pushRun { head := AddMul.add, args := #[a] }
+  let fb ← runLine <| pushRun { head := AddMul.add, args := #[b] }
 
   printEGraph
 
@@ -132,14 +132,14 @@ def testCongruence : EGraphIO Unit := do
 def testCongruencePropagation : EGraphIO Unit := do
   IO.println "Test Nested Congruence"
 
-  let a ← runLine <| pushRun { head := AddMul.var "a", args := [] }
-  let b ← runLine <| pushRun { head := AddMul.var "b", args := [] }
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := #[] }
+  let b ← runLine <| pushRun { head := AddMul.var "b", args := #[] }
 
-  let fa ← runLine <| pushRun { head := AddMul.add, args := [a] }
-  let fb ← runLine <| pushRun { head := AddMul.add, args := [b] }
+  let fa ← runLine <| pushRun { head := AddMul.add, args := #[a] }
+  let fb ← runLine <| pushRun { head := AddMul.add, args := #[b] }
 
-  let ga ← runLine <| pushRun { head := AddMul.mul, args := [fa] }
-  let gb ← runLine <| pushRun { head := AddMul.mul, args := [fb] }
+  let ga ← runLine <| pushRun { head := AddMul.mul, args := #[fa] }
+  let gb ← runLine <| pushRun { head := AddMul.mul, args := #[fb] }
 
   let _ ← runLine <| unionRun a b
 
@@ -157,9 +157,9 @@ def testCongruencePropagation : EGraphIO Unit := do
 def testUnionTransitive : EGraphIO Unit := do
   IO.println "Test Union Transitivity"
 
-  let a ← runLine <| pushRun { head := AddMul.var "a", args := [] }
-  let b ← runLine <| pushRun { head := AddMul.var "b", args := [] }
-  let c ← runLine <| pushRun { head := AddMul.var "c", args := [] }
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := #[] }
+  let b ← runLine <| pushRun { head := AddMul.var "b", args := #[] }
+  let c ← runLine <| pushRun { head := AddMul.var "c", args := #[] }
 
   let _ ← runLine <| unionRun a b
   let _ ← runLine <| unionRun b c
@@ -181,15 +181,15 @@ def EGraphOperationTests := [
   testUnionTransitive,
 ]
 
---#eval runBatchTests EGraphOperationTests
+#eval runBatchTests EGraphOperationTests
 
 -- TODO: fancy tests that make the egraphs unhappy
 
 -- Just curious if this works
 def testCycle : EGraphIO Unit := do
-  let a ← runLine <| pushRun { head := AddMul.var "a", args := []}
-  let o ← runLine <| pushRun { head := AddMul.lit 1, args := []}
-  let b ← runLine <| pushRun { head := AddMul.add, args := [a,o]}
+  let a ← runLine <| pushRun { head := AddMul.var "a", args := #[]}
+  let o ← runLine <| pushRun { head := AddMul.lit 1, args := #[]}
+  let b ← runLine <| pushRun { head := AddMul.add, args := #[a,o]}
 
   printEGraph
 

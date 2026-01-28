@@ -77,6 +77,7 @@ def eqSat
       {D : Type _}
       [Analysis α D]
       [Inhabited D]
+      [Inhabited (Pattern α)]
       (rules : List (Rule α D))
       (limit : Nat := 10)
       -- (nodeLimit : Option Nat := none)
@@ -104,7 +105,7 @@ def eqSat
     if (nodeLimit > 0 ∧ egEnd.size > nodeLimit) then return ()
 
     -- IO.println s!"Jebal jom {i}"
-
+    let _ ← runLineUnit <| rebuildOpMap
     i := i + 1
 
 
@@ -156,7 +157,7 @@ partial def buildEGFromSExprGeneric [Analysis α D] (sx : SExpr) : EGraphM α D 
   match ParseExpr.parse (α := α) sx with
   | some (op, args) =>
     let argIds ← args.mapM buildEGFromSExprGeneric
-    pushRun {head := op, args := argIds}
+    pushRun {head := op, args := Array.mk argIds}
   | none =>
     panic! s!"Failed to parse argument"
 
@@ -165,6 +166,7 @@ partial def buildEGFromSExprGeneric [Analysis α D] (sx : SExpr) : EGraphM α D 
 -- or proper formatting
 def test_fn
     [Analysis α D]
+    [Inhabited (Pattern α)]
     -- (testName: String := "")
     (lhs : String)
     (rhs : List String)
@@ -198,6 +200,7 @@ def test_fn
 
 def test_fn_self
     [Analysis α D]
+    [Inhabited (Pattern α)]
     (testName: String := "")
     (lhs : String)
     (rhs : List String)
