@@ -15,17 +15,17 @@ abbrev EClassId := Nat
 
 structure ENode (α : Type _ ) where
   head : α
-  args : List EClassId
+  args : Array EClassId
 deriving Hashable, DecidableEq, Repr
 
 /-
-  EClasses hold a list of equivalent nodes and a list of parents
-  Performance is not an issue yet, lists instead of array for easier implementation
+  EClasses hold a Array of equivalent nodes and a Array of parents
+  Performance is not an issue yet, Arrays instead of array for easier implementation
   TODO: switch to array (...eventually)
 -/
 structure EClass (α : Type _) (D : Type _) where
-  nodes : List (ENode α)
-  parents : List (ENode α × EClassId)
+  nodes : Array (ENode α)
+  parents : Array (ENode α × EClassId)
   data : D
 deriving Repr
 
@@ -39,14 +39,14 @@ structure EGraph (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
   uf    : Batteries.UnionFind
   ecmap : Std.HashMap EClassId (EClass α D)
   hcons : Std.HashMap (ENode α) EClassId
-  dirty : List EClassId
+  dirty : Array EClassId
   -- For performance reasons, add a mapping of all terms by operator
-  opmap : Std.HashMap α (List EClassId)
+  opmap : Std.HashMap α (Array EClassId)
 
 instance [Inhabited D] : Inhabited (EClass α D) where
   default := {
-    nodes := []
-    parents := []
+    nodes := Array.empty
+    parents := Array.empty
     data := default
   }
 
@@ -56,7 +56,7 @@ class Analysis (α : Type _) (D : Type _)  [DecidableEq α][Hashable α] where
   to be associated with 𝑛’s new e-class,
   typically by accessing the associated data of 𝑛’s children. -/
   -- make(𝑛) → 𝑑𝑐
-  make : (en : ENode α) → List D → D
+  make : (en : ENode α) → Array D → D
 
 
 
@@ -80,7 +80,12 @@ class Analysis (α : Type _) (D : Type _)  [DecidableEq α][Hashable α] where
   -/
   modify : EGraph α D → EClassId → EGraph α D
 
-
+-- https://stackoverflow.com/questions/6071951/best-algorithm-for-delete-duplicates-in-array-of-strings
+def dedupArray [BEq α] [Hashable α] (myArray : Array α) : Array α :=
+  myArray.foldl (init := ((Std.HashSet.emptyWithCapacity, Array.empty) : (Std.HashSet α × Array α)))
+  (λ (hashset, newarray) el =>
+    if hashset.contains el then (hashset, newarray) else (hashset.insert el, newarray.push el)
+  ) |>.2 -- return newarray
 
 instance : Inhabited (Analysis α Unit) where
   default := {
@@ -101,23 +106,26 @@ instance : Analysis α Unit where
 -/
 def EClass.empty [Inhabited D] {α : Type _} : EClass α D :=
   {
-    nodes := []
-    parents := []
+    nodes := Array.empty
+    parents := Array.empty
     data := default
   }
 
 def EClass.fromNode {α : Type _} (en : ENode α) (data : D) : EClass α D :=
   {
-    nodes := [en]
-    parents := []
+    nodes := Array.singleton en
+    parents := Array.empty
     data := data
   }
+
 
 def EClass.merge (ec₁ ec₂ : EClass α D) (join : D → D → D) : EClass α D:=
   {
     -- TODO: think.. do we need to dedup here also?
     -- Just do it
-    nodes   := (ec₁.nodes ++ ec₂.nodes).eraseDups
+    -- nodes   := (ec₁.nodes ++ ec₂.nodes).eraseDups
+    -- ok look this is kinda stupid
+    nodes :=  ec₁.nodes.append ec₂.nodes
     parents := ec₁.parents ++ ec₂.parents
 
     -- Analysis?
@@ -144,7 +152,7 @@ def EGraph.empty : EGraph α D:=
     uf    := Batteries.UnionFind.empty
     ecmap := Std.HashMap.emptyWithCapacity
     hcons := Std.HashMap.emptyWithCapacity
-    dirty := []
+    dirty := Array.empty
     opmap := Std.HashMap.emptyWithCapacity
   }
 
@@ -196,7 +204,7 @@ def lookupCanonicalEClassId (id : EClassId) : EGraphM α D <| EClassId := do
 -- Realisation: no one will call this except me
 -- I am freeeeee
 def canonicalise (en : ENode α) : EGraphM α D (ENode α) := do
-  let newargs : List EClassId ← en.args.mapM lookupCanonicalEClassId
+  let newargs : Array EClassId ← en.args.mapM lookupCanonicalEClassId
   return { en with args := newargs}
 
 -- Do it anyway... :'(
@@ -222,7 +230,7 @@ def findClass (en : ENode α) : EGraphM α D (Option EClassId) := do
 /-
   Update Parents of an E-Class
   Run a fold over the arguments of the term (EClassId type)
-  For each argument, add the current node to their parents list
+  For each argument, add the current node to their parents Array
   None should not be reachable but for completion
   TODO: replace with .get! ?
 -/
@@ -231,7 +239,7 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α D)) (en : ENode α) (
     match ecmap'.get? argId with
     | some cls =>
       let parent := (en, eid)
-      let ec     := {cls with parents := parent :: cls.parents}
+      let ec     := {cls with parents := cls.parents.push parent} -- is this faster? -- parent :: cls.parents}
       ecmap'.insert argId ec
     | none     => panic! "updateParents none should not be reachable"-- ecmap' -- if not reachable better warning i guess
   )
@@ -239,7 +247,7 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α D)) (en : ENode α) (
 
 /-
   -- This is not used and doesn't type check anymore
-  def canonicaliseParents (par: List (ENode α × EClassId)) : EGraphM α D (List (ENode α × EClassId)) := do
+  def canonicaliseParents (par: Array (ENode α × EClassId)) : EGraphM α D (Array (ENode α × EClassId)) := do
     let par' ← par.mapM (λ (en,id) => do
       let en' ← canonicalise en
       let id' ← lookupCanonicalEClassId id
@@ -257,7 +265,7 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α D)) (en : ENode α) (
   If it doesn't, add it to the UF, E-Class Map, HCons
   Returns the new ID (which is the size of the E-Graph)
 -/
-def push {D : Type _} [Inhabited (EClass α D)] (en : ENode α) (make : ENode α → List D → D): EGraphM α D (EClassId) := do
+def push {D : Type _} [Inhabited (EClass α D)] (en : ENode α) (make : ENode α → Array D → D): EGraphM α D (EClassId) := do
   let en' ← canonicalise en
   let canonId ← findClass en'
   match canonId with
@@ -285,14 +293,14 @@ def push {D : Type _} [Inhabited (EClass α D)] (en : ENode α) (make : ENode α
     -- In any case, use getD to specify a default
     -- TODO: I think we can use getD to change some of the other code
 
-    let curlist:= eg.opmap.getD en'.head []
-    let opmap' := eg.opmap.insert en'.head (curSize :: curlist)
+    let curArray:= eg.opmap.getD en'.head Array.empty
+    let opmap' := eg.opmap.insert en'.head (curArray.push curSize)
     set { eg with
             uf := uf',
             ecmap := ecmap'',
             hcons := hcons',
             opmap := opmap'
-            dirty := curSize :: eg.dirty
+            dirty := eg.dirty.push curSize
         }
     return curSize
 
@@ -331,9 +339,24 @@ def union (id₁ id₂ : EClassId) (join : D → D → D) : EGraphM α D (EClass
                   eg with
                   uf := uf''
                   ecmap := (Std.HashMap.insert (Std.HashMap.erase eg.ecmap fromId) leaderClassId leaderClass)
-                  dirty := leaderClassId :: eg.dirty
+                  dirty :=  eg.dirty.push leaderClassId
                 }
     return leaderClassId
+
+
+
+def rebuildOpMap : EGraphM α D Unit := do
+  let eg ← get
+  let mut newOpMap : Std.HashMap α (Array EClassId) := Std.HashMap.emptyWithCapacity
+
+  for (id, eclass) in eg.ecmap.toList do
+    for node in eclass.nodes do
+      let head := node.head
+      let currentArr := newOpMap.getD head #[]
+      newOpMap := newOpMap.insert head (currentArr.push id)
+
+  set { eg with opmap := newOpMap }
+
 
 /-
   Helper for Rebuild
@@ -370,7 +393,7 @@ def repair (id : EClassId) (join : D → D → D) : EGraphM α D (Unit) := do
     let _ ← union id₁ id₂ join
 
   let curNodes ← eClass.nodes.mapM canonicalise
-  let newNodes := curNodes.eraseDups
+  let newNodes := dedupArray curNodes
 
   -- Loop 2...
   let newParents ← eClass.parents.foldlM (init := Std.HashMap.emptyWithCapacity) (λ parents' (p : (ENode α × EClassId)) => do
@@ -386,12 +409,12 @@ def repair (id : EClassId) (join : D → D → D) : EGraphM α D (Unit) := do
   let eg' ← get
   let canonId' ←  (lookupCanonicalEClassId canonId)
   let eClassFinal := eg'.ecmap.get! canonId' -- needs to be canonicalised again
-  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal with parents := newParents.toList, nodes := newNodes },}
+  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal with parents := newParents.toArray, nodes := newNodes },}
 
 
 /-
   I don't think this can be written with proof of termination so we will have to mark partial
-  Rebuilds the egraph by iterating over the dirty list
+  Rebuilds the egraph by iterating over the dirty Array
   Recursively calls rebuild until everything is empty
 -/
 
@@ -400,10 +423,10 @@ partial def rebuild (join : D → D → D) (modify : EGraph α D → EClassId �
   let todo := eg.dirty
   if todo.isEmpty then return else
 
-  let _ ← set { eg with dirty := [] }
-  let repairList := (← todo.mapM lookupCanonicalEClassId).eraseDups
+  let _ ← set { eg with dirty := Array.empty }
+  let repairArray := (← todo.mapM lookupCanonicalEClassId)
 
-  for item in repairList do
+  for item in (dedupArray repairArray) do
     repair item join
 
     let eg' ← get
@@ -433,15 +456,15 @@ def rebuildRun [Analysis α D] : EGraphM α D (Unit) := do
 def repair (id : EClassId) : EGraphM α (Unit) := do
   let eg ← get
   let eClass := eg.ecmap.get! id
-  let hcList := eg.hcons.toList
+  let hcArray := eg.hcons.toArray
 
-  let updateHCList ← eClass.parents.foldlM (init := hcList) (λ hcList' (p: (ENode α × EClassId)) => do
+  let updateHCArray ← eClass.parents.foldlM (init := hcArray) (λ hcArray' (p: (ENode α × EClassId)) => do
     let canon ← canonicalise p.1
     let canonId ← lookupCanonicalEClassId p.2
-    return hcList'.erase (p.1, p.2) |>.insert (canon, canonId)
+    return hcArray'.erase (p.1, p.2) |>.insert (canon, canonId)
   )
 
-  let newParents ← eClass.parents.foldlM (init := updateHCList) (λ updateHCList' (p : ()))
+  let newParents ← eClass.parents.foldlM (init := updateHCArray) (λ updateHCArray' (p : ()))
 
 
 
@@ -451,7 +474,7 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
 /-
 -- ISSUE: HashSet doesn't allow duplicates, therefore collisions == overwrite
 -- the original egg paper doesn't specify the DS, but given that deduplication is in Loop 2
--- and not Loop 1, I assume that Loop 1 is one that allows duplicates. Solution, use list, then convert to HashSet later
+-- and not Loop 1, I assume that Loop 1 is one that allows duplicates. Solution, use Array, then convert to HashSet later
 def repair (id : EClassId) : EGraphM α (Unit) := do
   -- oh no my functions require MORE MONADS
   let eg ← get
@@ -470,7 +493,7 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
   )
   let eg ← get
   let _ ← set { eg with hcons := updateHCons }
-  -- a bit inefficient and confusing to do list, better a map/set or something with better tracking. hashmap can be converted to list
+  -- a bit inefficient and confusing to do Array, better a map/set or something with better tracking. hashmap can be converted to Array
 
   -- Loop 2...
   -- can these two loops be merged?
@@ -485,5 +508,5 @@ def repair (id : EClassId) : EGraphM α (Unit) := do
       return parents'.insert canon canonId
   )
   let eg' ← get
-  let _ ← set { eg' with ecmap := eg'.ecmap.insert id { eClass with parents := newParents.toList },  }
+  let _ ← set { eg' with ecmap := eg'.ecmap.insert id { eClass with parents := newParents.toArray },  }
 -/

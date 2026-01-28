@@ -43,7 +43,7 @@ def childCosts (eg : EGraph α D) (cm : costMap α) (children : List EClassId) :
     | none   => none
 
 def calcNodeCost (eg : EGraph α D) (cm : costMap α) (en : ENode α) (fn : costFn α) : Option <| costBundle α :=
-  match (childCosts eg cm en.args) with
+  match (childCosts eg cm en.args.toList) with
   | none => none
   | some val => ((fn en.head) + val.sum, en)
 

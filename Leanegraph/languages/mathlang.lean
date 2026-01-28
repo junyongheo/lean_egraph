@@ -66,7 +66,7 @@ instance : ParseExpr MathLang where
 
 
 def liftVar (s : String) : Pattern MathLang := Pattern.PatVar s
-def liftTerm (h : MathLang) (args : List (Pattern MathLang)) : Pattern MathLang := Pattern.PatTerm h args
+def liftTerm (h : MathLang) (args : List (Pattern MathLang)) : Pattern MathLang := Pattern.PatTerm h (Array.mk args)
 
 
 def pDiff (x y : Pattern MathLang ) := liftTerm (.d      ) [x, y]
@@ -99,12 +99,15 @@ instance : Inhabited (MathLangData) where
 
 instance : Inhabited (EClass MathLang MathLangData) where
   default := {
-    nodes := [],
-    parents := [],
+    nodes := #[],
+    parents := #[],
     data := default
   }
 
-def myMake (en : ENode MathLang) (children : List MathLangData) : MathLangData :=
+instance : Inhabited (Pattern MathLang) where
+  default := Pattern.PatVar "_"
+
+def myMake (en : ENode MathLang) (children : Array MathLangData) : MathLangData :=
   -- dbg_trace s!"ENode {en.head} Has Children? {!children.isEmpty}"
   let x :=
     (
@@ -163,7 +166,7 @@ instance ConstantFold : EGraph.Analysis MathLang MathLangData where
     | none => eg -- No constant known, do nothing
     | some n =>
         let addNew : EGraphM MathLang MathLangData Unit := do
-          let constId ← push { head := MathLang.const n, args := [] } myMake
+          let constId ← push { head := MathLang.const n, args := #[] } myMake
           --dbg_trace s!"AAAAA {constId}"
           --dbg_trace s!"AAAAAAAA {n}"
           let _ ← union id constId myJoin

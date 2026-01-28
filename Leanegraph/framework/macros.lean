@@ -29,21 +29,21 @@ macro_rules
 -- | `(?$s:str) =>
 --    `(liftVar $s)
 | `(r* $lhs  ===  $rhs) =>
-    `({ lhs := $lhs, rhs := $rhs, cnd := [] })
+    `({ lhs := $lhs, rhs := $rhs, cnd := #[] })
 | `(r* $lhs  ===  $rhs if $cnd) =>
-    `({ lhs := $lhs, rhs := $rhs, cnd := [Condition.CustomLookup $cnd] })
+    `({ lhs := $lhs, rhs := $rhs, cnd := #[Condition.CustomLookup $cnd] })
 -- if this doesn't work come back here
 -- https://leanprover-community.github.io/lean4-metaprogramming-book/main/06_macros.html
 | `(r* $lhs  ===  $rhs  ifMultiple  [ $[$cnds],* ] ) =>
     `({
         lhs := $lhs,
         rhs := $rhs,
-        cnd := [$[Condition.CustomLookup $cnds],*]
+        cnd := #[$[Condition.CustomLookup $cnds],*]
     })
 | `(push $head) =>
-    `(runLine <| pushRun { head := $head, args := [] })
+    `(runLine <| pushRun { head := $head, args := #[] })
 | `(push $head [$args,*]) =>
-    `(runLine <| pushRun { head := $head, args := [$args,*] })
+    `(runLine <| pushRun { head := $head, args := #[$args,*] })
 | `(rebuild) =>
     `(runLineUnit <| rebuildRun)
 | `(pushTerm $head) =>
