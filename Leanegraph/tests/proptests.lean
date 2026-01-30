@@ -1,33 +1,9 @@
-import Leanegraph.core.egraphs
-import Leanegraph.core.rewrite
+import Leanegraph.core
 import Leanegraph.framework
 import Leanegraph.languages.prop
 
 open EGraph
 
-
-/-
-  Start Tests
--/
-
-/-
-  Based on EGG Test
-    prove_something(
-        "contrapositive",
-
-        "(-> x y)",
-
-        -- equivalent to --
-
-        "(-> x y)",
-        "(| (~ x) y)",
-        "(| (~ x) (~ (~ y)))",
-        "(| (~ (~ y)) (~ x))",
-        "(-> (~ y) (~ x))",
-
-}
-
--/
 def testContrapositive : PropIO Unit := do
   IO.println "\nTest Contrapositive"
 
@@ -137,7 +113,6 @@ def testAutomated : PropIO Unit := do
   | .ok theStr => runLine <| buildEGFromSExprGeneric theStr
   | .error e  => panic! s!"This did not work with error {e}"
 
-  -- runLine <| buildEGFromSExprGeneric <| ExprParser.SExprParser.run implxy
   printEGraph
 
 -- #eval runTest testAutomated
@@ -145,9 +120,7 @@ def testAutomated : PropIO Unit := do
 def testAutomatedChain : PropIO Unit := do
   IO.println "\nTest Chain (Transitivity)"
 
-  let st ← pushTerm "(& (→ x y) (→ y z))"
-
-
+  let st ← parseTerm "(& (→ x y) (→ y z))"
 
   printEGraph
   eqSat (α := PropLang) smallerSet (limit := 5)
@@ -155,18 +128,18 @@ def testAutomatedChain : PropIO Unit := do
 
 
   -- 1. (& (-> (~ y) (~ x)) (-> y z))
-  let r1 ← pushTerm "(& (→ (¬ y) (¬ x)) (→ y z))"
+  let r1 ← parseTerm "(& (→ (¬ y) (¬ x)) (→ y z))"
   -- 2. (& (-> y z) (-> (~ y) (~ x)))
-  let r2 ← pushTerm "(& (→ y z) (→ (¬ y) (¬ x)))"
+  let r2 ← parseTerm "(& (→ y z) (→ (¬ y) (¬ x)))"
 
   -- 3. (| z (~ x))
-  let r3 ← pushTerm "(| z (¬ x))"
+  let r3 ← parseTerm "(| z (¬ x))"
 
   -- 4. (| (~ x) z)
-  let r4 ← pushTerm "(| (¬ x) z)"
+  let r4 ← parseTerm "(| (¬ x) z)"
 
   -- 5. (-> x z)
-  let t5 ← pushTerm "(→ x z)"
+  let t5 ← parseTerm "(→ x z)"
 
   let _ ← runLine <| checkSameClass st r1
   let _ ← runLine <| checkSameClass st r2

@@ -49,6 +49,8 @@ macro_rules
     `(runLine <| pushRun { head := $head, args := #[] })
 | `(push $head [$args,*]) =>
     `(runLine <| pushRun { head := $head, args := #[$args,*] })
+| `(union $id1 $id2) =>
+    `(runLine <| unionRun $id1 $id2)
 | `(rebuild) =>
     `(runLineUnit <| rebuildRun)
 | `(parseTerm $head) =>

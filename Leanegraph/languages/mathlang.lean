@@ -153,7 +153,7 @@ def myMake (en : ENode MathLang) (children : Array MathLangData) : MathLangData 
 
   def myJoin (d1 : MathLangData) (d2 : MathLangData) : MathLangData :=
     match d1.data, d2.data with
-    | some v1 , some v2 => if (v1 = v2) then d1 else (panic! s!"Oh nooooo {v1} and {v2}")
+    | some v1 , some v2 => if (v1 = v2) then d1 else d1 --(panic! s!"Oh nooooo {v1} and {v2}")
     | some _v1, _       => d1
     | _,       some _v2 => d2 -- what is my comma doing all the way there
     | _       , _       => {data := none}

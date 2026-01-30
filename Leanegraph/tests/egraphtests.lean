@@ -15,6 +15,7 @@ open EGraph
   IMPORTANT:
     Currently the rebuild operation is deferred and batched
     Therefore the user needs to call rebuild whenever needed
+    Running Equality Saturation (eqSat) rebuilds the graph every iteration
 
 -/
 
@@ -121,8 +122,8 @@ def testCongruence : EGraphIO Unit := do
 /-
   Test if congruence propagates
   Have variables a and b
-  Have fa, fb with a, b as argument
-  Have ga, gb with a, b as argument
+  Have fa, fb with a , b  as argument
+  Have ga, gb with fa, fb as argument
 
   We saw in the previous test(s) that if union a b
   (a ≡ b) and (f(a) ≡ f(b))
