@@ -38,6 +38,9 @@ inductive Pattern (α : Type _) where
 | PatVar : String → Pattern α
 deriving Repr, Hashable --why decideableeq not work, look into
 
+instance : Inhabited (Pattern α) where
+  default := Pattern.PatVar "_"
+
 
 inductive Condition (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
 | Equal        : Pattern α → Pattern α           → Condition α D

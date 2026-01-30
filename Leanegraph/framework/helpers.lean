@@ -146,7 +146,8 @@ def eqSat
 
     let (_, egEnd) := (rebuild (Analysis.join (α := α)) (Analysis.modify)).run egWrite
 
-    -- printEGraph
+    --IO.println s!"ITERATION {i}"
+    --printEGraph
 
     set egEnd
 
@@ -159,6 +160,67 @@ def eqSat
     -- IO.println s!"Jebal jom {i}"
     i := i + 1
 
+def rewrite {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) : EGraphM α D <| Unit := do
+  let eg ← get
+
+  let searchOp : Array EClassId :=
+    match r.lhs with
+    | Pattern.PatTerm head _ =>
+        eg.opmap.getD head #[]
+    | Pattern.PatVar _ =>
+        eg.ecmap.toArray.map Prod.fst
+
+  let pMatches : Array (EClassId × Dict α) ← searchOp.flatMapM (λ id => do
+      let subs ← (ematch r.lhs (← lookupCanonicalEClassId id) Std.HashMap.emptyWithCapacity)
+      return subs.map (λ sub => (id, sub)))
+
+  let condTrue ← pMatches.filterM (λ (_, d) => do
+    r.cnd.allM (λc => checkCondition c d)
+
+  )
+
+  let joinFn := Analysis.join (α := α) (D := D)
+
+  condTrue.forM (λ (lhsId, sub) => do
+    let rhsId ← instantiate r.rhs sub
+    let _     ← union lhsId rhsId joinFn
+  )
+
+def oldeqSat
+      {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
+      {D : Type _}
+      [Analysis α D]
+      [Inhabited D]
+      [Inhabited (Pattern α)]
+      (rules : List (Rule α D))
+      (limit : Nat := 10)
+      -- (nodeLimit : Option Nat := none)
+      (nodeLimit : Nat := 0)
+    : EGraphGenericIO α (D := D) Unit := do
+  let mut i := 0
+  while i < limit do
+    let egStart ← get
+
+    let numClassesStart := egStart.uf.size
+    let numNodesStart   := egStart.size
+
+    for r in rules do
+      runLineUnit <| rewrite (α := α) (D := D) (r := r)
+
+    runLineUnit <| rebuild (Analysis.join (α := α)) (Analysis.modify)
+
+    -- printEGraph
+
+    let egEnd ← get
+    let numClassesEnd := egEnd.uf.size
+    let numNodesEnd   := egEnd.size
+    if numClassesStart == numClassesEnd && numNodesStart == numNodesEnd then
+      return ()
+    if (nodeLimit > 0 ∧ egEnd.size > nodeLimit) then return ()
+
+    -- IO.println s!"Jebal jom {i}"
+
+    i := i + 1
 
 
 /-
@@ -206,7 +268,7 @@ variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α] [ParseExpr α]
 partial def buildEGFromSExprGeneric [Analysis α D] (sx : SExpr) : EGraphM α D EClassId := do
   match ParseExpr.parse (α := α) sx with
   | some (op, args) =>
-    let argIds ← args.mapM buildEGFromSExprGeneric
+    let argIds ← args.mapM (buildEGFromSExprGeneric)
     pushRun {head := op, args := Array.mk argIds}
   | none =>
     panic! s!"Failed to parse argument"

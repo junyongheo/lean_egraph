@@ -13,6 +13,8 @@ macro "r*" lhs:term " === " rhs:term " if " cnd:term : term =>
 
 open EGraph
 
+prefix:100 "?" => Pattern.PatVar
+
 /-
 macro "r*" lhs:term " === " rhs:term : term =>
   `({ lhs := $lhs, rhs := $rhs, cnd := [] })
@@ -20,9 +22,10 @@ macro "r*" lhs:term " === " rhs:term : term =>
 -- macro "?" lhs:term : term => `(liftVar $lhs)
 
 -- syntax "?" str : term
-syntax "r*" term " === " term : term
-syntax "r*" term " === " term " if "             term       : term
-syntax "r*" term " === " term " ifMultiple " "[" term,* "]" : term
+syntax "r*" term " === " term                                   : term
+syntax "r*" term " === " term " if "             term           : term
+syntax "r*" term " === " term " ifEQ "           term "," term  : term
+syntax "r*" term " === " term " ifMultiple " "[" term,* "]"     : term
 
 
 macro_rules
@@ -32,6 +35,8 @@ macro_rules
     `({ lhs := $lhs, rhs := $rhs, cnd := #[] })
 | `(r* $lhs  ===  $rhs if $cnd) =>
     `({ lhs := $lhs, rhs := $rhs, cnd := #[Condition.CustomLookup $cnd] })
+| `(r* $lhs  ===  $rhs ifEQ $cnd₁, $cnd₂) =>
+    `({ lhs := $lhs, rhs := $rhs, cnd := #[Condition.Equal $cnd₁ $cnd₂] })
 -- if this doesn't work come back here
 -- https://leanprover-community.github.io/lean4-metaprogramming-book/main/06_macros.html
 | `(r* $lhs  ===  $rhs  ifMultiple  [ $[$cnds],* ] ) =>
@@ -46,13 +51,13 @@ macro_rules
     `(runLine <| pushRun { head := $head, args := #[$args,*] })
 | `(rebuild) =>
     `(runLineUnit <| rebuildRun)
-| `(pushTerm $head) =>
+| `(parseTerm $head) =>
     `(
         match (ExprParser.SExprParser.run $head) with
         | .ok expr => runLine <| buildEGFromSExprGeneric expr
         | .error e => panic! s!"Error with {e}"
     )
-| `(pushTerm $head "error" $errormsg) =>
+| `(parseTerm $head "error" $errormsg) =>
     `(
         match (ExprParser.SExprParser.run $head) with
         | .ok expr => runLine <| buildEGFromSExprGeneric expr
@@ -62,3 +67,7 @@ macro_rules
     `(runLine <| checkSameClass $lhs $rhs)
 | `(checkNonEquivalent $lhs $rhs) =>
     `(runLine <| checkDiffClass $lhs $rhs)
+| `(pushAnalysis $head $myMake) =>
+    `(push {head := $head, args := #[]} $myMake)
+| `(pushAnalysis $head [$args,*] $myMake) =>
+    `(EGraph.push {head := $head, args := #[$args,*]} $myMake)

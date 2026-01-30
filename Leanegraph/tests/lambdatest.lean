@@ -14,7 +14,7 @@ import Leanegraph.languages.lambda
 open EGraph
 
 -- Lift var/term → Pattern
-def liftTerm (h : Lambda) (args : List (Pattern Lambda)) : Pattern Lambda := Pattern.PatTerm h args
+def liftTerm (h : Lambda) (args : List (Pattern Lambda)) : Pattern Lambda := Pattern.PatTerm h (Array.mk args)
 def liftVar (s : String) : Pattern Lambda := Pattern.PatVar s
 
 -- Constructors for data(?) types
@@ -35,21 +35,15 @@ def pIf (c t e : Pattern Lambda)  := liftTerm .if_ [c, t, e]
 -- Macros for syntax
 macro "?" lhs:term : term => `(liftVar $lhs)
 
-macro "r*" lhs:term " === " rhs:term : term =>
-  `({ lhs := $lhs, rhs := $rhs })
 
-
-def lambdaRules : List (Rule Lambda) := [
+abbrev LambRule := Rule Lambda Unit
+def lambdaRules : List (LambRule) := [
   -- Open term rules
   r* pIf (pBool true) (?"then") (?"else")  === (?"then"),
   r* pIf (pBool false) (?"then") (?"else") === (?"else"),
 
   -- if-elim: (if (= (var ?x) ?e) ?then ?else) -> ?else
-  {(r* pIf (pEq (?"x") (?"e")) (?"then") (?"else") === (?"else") : Rule Lambda) with
-    cnd := [
-      Condition.Equal (pLet (?"x") (?"e") (?"then")) (pLet (?"x") (?"e") (?"else"))
-    ]
-  },
+  r* pIf (pEq (?"x") (?"e")) (?"then") (?"else") === (?"else") ifEQ (pLet (?"x") (?"e") (?"then")), (pLet (?"x") (?"e") (?"else")),
 
   -- Add-Comm
   r* pAdd (?"a") (?"b") === pAdd (?"b") (?"a"),
@@ -73,23 +67,39 @@ def lambdaRules : List (Rule Lambda) := [
   r* pLet (?"v") (?"e") (pIf (?"cond") (?"then") (?"else")) ===
      pIf (pLet (?"v") (?"e") (?"cond")) (pLet (?"v") (?"e") (?"then")) (pLet (?"v") (?"e") (?"else")),
 
+/-
+    r* pLet (?"v1") (?"e") (pVar (?"v1")) === (?"e"),
+
+    r* pLet (?"v1") (?"e") (pVar (?"v2")) === pVar (?"v2")
+      if isNotSameVar "v1" "v2",
+    -- let lam same
+    r* pLet (?"v1") (?"e") (pLam (?"v1") (?"body")) === pLam (?"v1") (?"body"),
+    -- let lam diff - need capture avoidance
+    r* pLet (?"v1") (?"e") (pLam (?"v2") (?"body")) ===
+      pLam (?"v2") (pLet (?"v1") (?"e") (?"body")) -- if not free case, not sure how to do the others
+      ifMultiple [ (isNotSameVar "v1" "v2"), (isNotFree "v2" "e") ],
+-/
+
   -- let var same diff
   r* pLet (?"v1") (?"e") (?"v1") === (?"e"),
+  /-
   {((r* pLet (?"v1") (?"e") (?"v2") === (?"v2")) : Rule Lambda) with
     cnd := [
       Condition.NotEqual (?"v1") (?"v2")
     ]
   },
+  -/
 
   r* pLet (?"v1") (?"e") (pLam (?"v1") (?"body")) === pLam (?"v1") (?"body"),
 
   -- ok I cannot let lam diff
 
 
+
 ]
 
 -- For no analysis purposes
-def arithmeticRules : List (Rule Lambda) := [
+def arithmeticRules : List (LambRule) := [
   r* pAdd (pNum 0) (pNum 1) === pNum 1,
   r* pAdd (pNum 1) (pNum 0) === pNum 1,
   r* pEq (pNum 1) (pNum 1)  === pBool true,
@@ -102,24 +112,26 @@ def allRules := lambdaRules ++ arithmeticRules
 def testLambdaUnder : LambdaIO Unit := do
   IO.println "\nTest: Lambda Under"
 
-  let x ← runLine <| push { head := .var "x", args := []}
-  let y ← runLine <| push { head := .var "y", args := []}
-  let t ← runLine <| push { head := .num 3, args := []}
+  let x ← push <| .var "x"
+  let y ← push <| .var "y"
+  let t ← push <| .num 3
 
-  let l ← runLine <| push { head := .lam, args := [y, y]}
+  let l ← push .lam [y,y]
 
-  let a ← runLine <| push { head := .app, args := [l, t]}
+  let a ← push .app [l, t]
 
-  let inner ← runLine <| push {head := .add, args := [t, a]}
+  let inner ← push .add [t, a]
 
-  let _st ← runLine <| push { head := .lam, args := [x, inner]}
+  let _st ← push .lam [x, inner]
 
-  let s ← runLine <| push { head := .num 6, args := [] }
-  let _fn ← runLine <| push { head := .lam, args := [x, s]}
+  let s ← push <| .num 6
+  let _fn ← push .lam [x,s]
 
   printEGraph
   eqSat (allRules)
   printEGraph
+
+  let _ ← checkEquivalent _st _fn
 
 #eval runTest testLambdaUnder
 

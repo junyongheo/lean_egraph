@@ -55,7 +55,7 @@ instance : ParseExpr MathLang where
     | .atom "/"    => some (.div,  args)
     | .atom "d"    => some (.d,    args)
     | .atom "i"    => some (.i,    args)
-    | .atom "pow"    => some (.pow,  args)
+    | .atom "pow"  => some (.pow,  args)
     | .atom "ln"   => some (.ln,   args)
     | .atom "sqrt" => some (.sqrt, args)
     | .atom "sin"  => some (.sin,  args)
@@ -96,16 +96,19 @@ instance : Inhabited (MathLangData) where
   default := {
     data := none
   }
-
+/-
 instance : Inhabited (EClass MathLang MathLangData) where
   default := {
     nodes := #[],
     parents := #[],
     data := default
   }
-
+-/
+/-
 instance : Inhabited (Pattern MathLang) where
   default := Pattern.PatVar "_"
+-/
+
 
 def myMake (en : ENode MathLang) (children : Array MathLangData) : MathLangData :=
   -- dbg_trace s!"ENode {en.head} Has Children? {!children.isEmpty}"
@@ -139,7 +142,11 @@ def myMake (en : ENode MathLang) (children : Array MathLangData) : MathLangData 
       | _     , _      => {data := none}
     | .div, _     =>
       match x 0, x 1 with
-      | some a, some b => {data := some (a / b)}
+      | some a, some b =>
+        if b != 0 && a % b == 0 then
+          {data := some (a / b)}
+        else
+          {data := none}
       | _     , _      => {data := none}
     | _, _        => {data := none}
 
@@ -167,8 +174,8 @@ instance ConstantFold : EGraph.Analysis MathLang MathLangData where
     | some n =>
         let addNew : EGraphM MathLang MathLangData Unit := do
           let constId ← push { head := MathLang.const n, args := #[] } myMake
-          --dbg_trace s!"AAAAA {constId}"
-          --dbg_trace s!"AAAAAAAA {n}"
+          -- dbg_trace s!"Id {constId}"
+          -- dbg_trace s!"has const {n}"
           let _ ← union id constId myJoin
           return ()
 
@@ -255,9 +262,6 @@ def isConstOrDistinctVar (c x : String) : Dict MathLang → EGraphM MathLang Mat
 
 abbrev MathRule := Rule MathLang MathLangData
 
-
-prefix:100 "?" => Pattern.PatVar
-
 -- 2. The Rules
 def mathRules : List (MathRule) := [
 
@@ -277,7 +281,7 @@ def mathRules : List (MathRule) := [
   r* (?"a") === pMul (?"a") (pConst 1),
 
   r* pSub (?"a") (?"a") === (pConst 0),
-  r* pDiv (?"a") (?"a") === (pConst 1),
+  r* pDiv (?"a") (?"a") === (pConst 1) if isNotZero "a",
 
   r* pMul (?"a") (pAdd (?"b") (?"c")) === pAdd (pMul (?"a") (?"b")) (pMul (?"a") (?"c")),
   r* pAdd (pMul (?"a") (?"b")) (pMul (?"a") (?"c")) === pMul (?"a") (pAdd (?"b") (?"c")),
@@ -292,18 +296,18 @@ def mathRules : List (MathRule) := [
   r* pDiff (?"x") (?"x") === (pConst 1) if isSym "x",
   r* pDiff (?"c") (?"x") === (pConst 0) if isConstOrDistinctVar "c" "x",
 
-  r* pDiff (pAdd (?"a") (?"b")) (?"x") === pAdd (pDiff (?"a") (?"x")) (pDiff (?"b") (?"x")),
-  r* pDiff (pMul (?"a") (?"b")) (?"x") === pAdd (pMul (?"a") (pDiff (?"b") (?"x"))) (pMul (?"b") (pDiff (?"a") (?"x"))),
+  r* pDiff (?"x") (pAdd (?"a") (?"b")) === pAdd (pDiff (?"x") (?"a")) (pDiff (?"x") (?"b")),
+  r* pDiff (?"x") (pMul (?"a") (?"b")) === pAdd (pMul (?"a") (pDiff (?"x") (?"b"))) (pMul (?"b") (pDiff (?"x") (?"a"))),
 
-  r* pDiff (pSin (?"x")) (?"x") === pCos (?"x"),
-  r* pDiff (pCos (?"x")) (?"x") === pMul (pConst (-1)) (pSin (?"x")),
+  r* pDiff (?"x") (pSin (?"x")) === pCos (?"x"),
+  r* pDiff (?"x") (pCos (?"x")) === pMul (pConst (-1)) (pSin (?"x")),
 
-  r* pDiff (pLn (?"x")) (?"x") === pDiv (pConst 1) (?"x") if isNotZero "x",
+  r* pDiff (?"x") (pLn (?"x")) === pDiv (pConst 1) (?"x") if isNotZero "x",
 
-  r* pDiff (pPow (?"f") (?"g")) (?"x") ===
+  r* pDiff (?"x") (pPow (?"f") (?"g")) ===
      pMul (pPow (?"f") (?"g"))
-          (pAdd (pMul (pDiff (?"f") (?"x")) (pDiv (?"g") (?"f")))
-                (pMul (pDiff (?"g") (?"x")) (pLn (?"f")))) ifMultiple
+          (pAdd (pMul (pDiff (?"x") (?"f")) (pDiv (?"g") (?"f")))
+                (pMul (pDiff (?"x") (?"g")) (pLn (?"f")))) ifMultiple
                 [
                   (isNotZero "f"), (isNotZero "g")
                 ],
@@ -319,5 +323,5 @@ def mathRules : List (MathRule) := [
   r* pIntg (pSub (?"f") (?"g")) (?"x") === pSub (pIntg (?"f") (?"x")) (pIntg (?"g") (?"x")),
   r* pIntg (pMul (?"a") (?"b")) (?"x") ===
      pSub (pMul (?"a") (pIntg (?"b") (?"x")))
-          (pIntg (pMul (pDiff (?"a") (?"x")) (pIntg (?"b") (?"x"))) (?"x"))
+          (pIntg (pMul (pDiff (?"x") (?"a")) (pIntg (?"b") (?"x"))) (?"x"))
 ]

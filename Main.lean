@@ -1,12 +1,8 @@
-import Leanegraph.core.egraphs
-import Leanegraph.core.rewrite
-import Leanegraph.framework.helpers
-import Leanegraph.framework.macros
-import Leanegraph.languages.addmul
-import Leanegraph.languages.lambda
+import Leanegraph.core
+import Leanegraph.framework
 -- import Leanegraph.languages.prop
 -- import Leanegraph.tests.proptests
-import Leanegraph.tests.egraphtests
+-- import Leanegraph.tests.egraphtests
 import Leanegraph.tests.mathtest
 
 
@@ -22,6 +18,8 @@ def main : IO Unit := do
   let _ ← runTest testConstFold      "Constant Fold"
   -/
   -- let _ ← runTest testAnalysisCF "CF"
-  let _ ← runTest integ_part1 "Folds"
-  let _ ← runTest integ_part2 "aehea"
-  let _ ← runTest math_simplify_factor "ateha"
+  -- let _ ← runTest integ_part1 "Folds"
+  -- let _ ← runTest integ_part3 "aehea"
+  -- let _ ← runTest math_simplify_factor "ateha"
+  let _ ← runTest diff_power_simple
+-- #eval runTest groupTest

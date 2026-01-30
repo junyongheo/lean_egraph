@@ -43,6 +43,12 @@ structure EGraph (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
   -- For performance reasons, add a mapping of all terms by operator
   opmap : Std.HashMap α (Array EClassId)
 
+instance [Inhabited α] : Inhabited (ENode α) where
+  default := {
+    head := default
+    args := #[]
+  }
+
 instance [Inhabited D] : Inhabited (EClass α D) where
   default := {
     nodes := Array.empty
@@ -244,7 +250,6 @@ def updateParents (ecmap : Std.HashMap EClassId (EClass α D)) (en : ENode α) (
     | none     => panic! "updateParents none should not be reachable"-- ecmap' -- if not reachable better warning i guess
   )
 
-
 /-
   -- This is not used and doesn't type check anymore
   def canonicaliseParents (par: Array (ENode α × EClassId)) : EGraphM α D (Array (ENode α × EClassId)) := do
@@ -334,12 +339,11 @@ def union (id₁ id₂ : EClassId) (join : D → D → D) : EGraphM α D (EClass
     -- merge std hashmap union
     -- also touch parents -- not in egg style deferred
     let leaderClass := EClass.merge (eg.ecmap.get! leaderClassId) (eg.ecmap.get! fromId) join
-
     let _ ← set {
                   eg with
                   uf := uf''
                   ecmap := (Std.HashMap.insert (Std.HashMap.erase eg.ecmap fromId) leaderClassId leaderClass)
-                  dirty :=  eg.dirty.push leaderClassId
+                  dirty :=  eg.dirty.push leaderClassId |>.push fromId
                 }
     return leaderClassId
 
@@ -409,7 +413,14 @@ def repair (id : EClassId) (join : D → D → D) : EGraphM α D (Unit) := do
   let eg' ← get
   let canonId' ←  (lookupCanonicalEClassId canonId)
   let eClassFinal := eg'.ecmap.get! canonId' -- needs to be canonicalised again
-  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal with parents := newParents.toArray, nodes := newNodes },}
+
+  -- Now canonicalize all nodes after unions
+  let curNodes ← eClass.nodes.mapM canonicalise
+  let newNodes := dedupArray curNodes
+
+  -- do i need to recanon? -- 129REMOVE
+  let eClassFinal' := { eClassFinal with nodes := (← eClassFinal.nodes.mapM canonicalise) }
+  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal' with parents := dedupArray newParents.toArray, nodes := dedupArray newNodes },}
 
 
 /-
@@ -441,7 +452,7 @@ partial def rebuild (join : D → D → D) (modify : EGraph α D → EClassId �
 -/
 
 def pushRun [Analysis α D] (en : ENode α) : EGraphM α D EClassId := do
-  let id ← push en Analysis.make
+  let id ← push (← canonicalise en) Analysis.make
   return id
 
 def unionRun [Analysis α D] (id₁ id₂ : EClassId) : EGraphM α D EClassId := do

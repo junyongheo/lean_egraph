@@ -8,7 +8,7 @@ import Leanegraph.framework.macros
 open EGraph
 open MathLang
 
-/-
+
 def testAnalysisCF : MathLangIO Unit := do
   let c1 ← push (.const 1)
   -- runLine <| pushRun { head := MathLang.const 1, args := [] }
@@ -24,7 +24,7 @@ def testAnalysisCF : MathLangIO Unit := do
 
 
 
--- #eval runTest testAnalysisCF
+#eval runTest testAnalysisCF
 
 
 def testAssocAdd : MathLangIO Unit := do
@@ -36,10 +36,10 @@ def testAssocAdd : MathLangIO Unit := do
     r* pAdd (?"a") (pAdd (?"b") (?"c")) === pAdd (pAdd (?"a") (?"b")) (?"c")
     ]
 
-  let sat ← runLine <| pushRun {head := .const 1, args := []}
-  let dua ← runLine <| pushRun {head := .const 2, args := []}
-  let tig ← runLine <| pushRun {head := .const 3, args := []}
-  let mpt ← runLine <| pushRun {head := .const 4, args := []}
+  let sat ← runLine <| pushRun {head := .const 1, args := #[]}
+  let dua ← runLine <| pushRun {head := .const 2, args := #[]}
+  let tig ← runLine <| pushRun {head := .const 3, args := #[]}
+  let mpt ← runLine <| pushRun {head := .const 4, args := #[]}
   let lim ← push (.const 5)
   let enm ← push (.const 6)
 
@@ -57,11 +57,11 @@ def testAssocAdd : MathLangIO Unit := do
   printEGraph
 
 -- #eval runTest testAssocAdd "ConstFold"
--/
+
 
 
 def quickerAssocAdd : MathLangIO Unit := do
-  let st ← pushTerm ("(+ 1 (+ 2 (+ 3 (+ 4 (+ 5 (+ 6 7)))))))")
+  let st ← parseTerm ("(+ 1 (+ 2 (+ 3 (+ 4 (+ 5 (+ 6 7)))))))")
 
   -- printEGraph
   eqSat (limit := 4) [
@@ -70,7 +70,7 @@ def quickerAssocAdd : MathLangIO Unit := do
     r* pAdd (?"a") (pAdd (?"b") (?"c")) === pAdd (pAdd (?"a") (?"b")) (?"c")
     ]
   printEGraph
-  let rhs ← pushTerm ("(+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 1)))))))")
+  let rhs ← parseTerm ("(+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 1)))))))")
 
   let _ ← checkEquivalent st rhs
 
@@ -108,7 +108,7 @@ def automatedAssocAdd : IO Unit := do
 def math_simplify_const : MathLangIO Unit := do -- takes 3 iterations, use as benchmark? does take forever
   let gl ← push (.const 1)
   printEGraph
-  let st ← pushTerm "(+ 1 (- a (* (- 2 1) a)))"
+  let st ← parseTerm "(+ 1 (- a (* (- 2 1) a)))"
   printEGraph
   eqSat (rules := [ -- because of egraph explosion it's really unmanageable with the full set thanks egg
     r* pAdd (?"a") (?"b") === pAdd (?"b") (?"a"),
@@ -128,16 +128,16 @@ def math_simplify_const : MathLangIO Unit := do -- takes 3 iterations, use as be
 -- #eval runTest math_simplify_const
 
 def math_fail : MathLangIO Unit := do
-  let lhs ← pushTerm "(+ x y)"
-  let rhs ← pushTerm "(/ x y)"
+  let lhs ← parseTerm "(+ x y)"
+  let rhs ← parseTerm "(/ x y)"
 
   eqSat (rules := mathRules) (limit := 2)
 
   let _ ← checkNonEquivalent lhs rhs
 
 def math_simplify_add : MathLangIO Unit := do
-  let lhs ← pushTerm "(+ x (+ x (+ x x)))"
-  let rhs ← pushTerm "(* 4 x)"
+  let lhs ← parseTerm "(+ x (+ x (+ x x)))"
+  let rhs ← parseTerm "(* 4 x)"
   eqSat (rules := mathRules) (limit := 4)
 
   let _ ← checkEquivalent lhs rhs
@@ -145,31 +145,31 @@ def math_simplify_add : MathLangIO Unit := do
 -- #eval runTest math_simplify_add
 
 def math_powers : MathLangIO Unit := do
-  let lhs ← pushTerm "(* (pow 2 x) (pow 2 y))"
-  let rhs ← pushTerm "(pow 2 (+ x y))"
+  let lhs ← parseTerm "(* (pow 2 x) (pow 2 y))"
+  let rhs ← parseTerm "(pow 2 (+ x y))"
   eqSat (rules := mathRules) (limit := 2)
   let _ ← checkEquivalent lhs rhs
 
 def math_simplify_root : MathLangIO Unit := do
-  let lhs ← pushTerm "(/ 1
+  let lhs ← parseTerm "(/ 1
        (- (/ (+ 1 (sqrt five))
              2)
           (/ (- 1 (sqrt five))
              2)))"
-  let rhs ← pushTerm "(/ 1 (sqrt five))"
-  eqSat (rules := mathRules) (limit := 2) (nodeLimit := 75000)
+  let rhs ← parseTerm "(/ 1 (sqrt five))"
+  eqSat (rules := mathRules) (limit := 5) (nodeLimit := 75000)
   let _ ← checkEquivalent lhs rhs
 
 def math_simplify_factor : MathLangIO Unit := do
-    let lhs ← pushTerm "(* (+ x 3) (+ x 1))"
-    let rhs ← pushTerm "(+ (+ (* x x) (* 4 x)) 3)"
+    let lhs ← parseTerm "(* (+ x 3) (+ x 1))"
+    let rhs ← parseTerm "(+ (+ (* x x) (* 4 x)) 3)"
     eqSat (rules := mathRules) (limit := 5)
     let _ ← checkEquivalent lhs rhs
 
 -- #eval runTest math_simplify_factor
 
 def math_diff_same : MathLangIO Unit := do
-  let lhs ← pushTerm "(d x x)"
+  let lhs ← parseTerm "(d x x)"
   let rhs ← push (.const 1)
   printEGraph
   eqSat (rules := mathRules) (limit := 1)
@@ -179,20 +179,20 @@ def math_diff_same : MathLangIO Unit := do
 
 
 def math_diff_different : MathLangIO Unit := do
-  let lhs ← pushTerm "(d x y)"
+  let lhs ← parseTerm "(d x y)"
   let rhs ← push (.const 0)
   eqSat (rules := mathRules) (limit := 1)
   let _ ← checkEquivalent lhs rhs
 
 
 def math_diff_simple1 : MathLangIO Unit := do
-  let lhs ← pushTerm "(d x (+ 1 (* 2 x)))"
+  let lhs ← parseTerm "(d x (+ 1 (* 2 x)))"
   let rhs ← push (.const 2)
   eqSat (rules := mathRules) (limit := 2)
   let _ ← checkEquivalent lhs rhs
 
 def math_diff_simple2: MathLangIO Unit := do
-  let lhs ← pushTerm "(d x (+ 1 (* y x)))"
+  let lhs ← parseTerm "(d x (+ 1 (* y x)))"
   let rhs ← push (.sym "y")
   eqSat (rules := mathRules) (limit := 2)
   let _ ← checkEquivalent lhs rhs
@@ -200,56 +200,60 @@ def math_diff_simple2: MathLangIO Unit := do
 
 
 def math_diff_ln : MathLangIO Unit := do
-  let lhs ← pushTerm "(d x (ln x))"
-  let rhs ← pushTerm "(/ 1 x)"
+  let lhs ← parseTerm "(d x (ln x))"
+  let rhs ← parseTerm "(/ 1 x)"
   eqSat (rules := mathRules) (limit := 2)
   let _ ← checkEquivalent lhs rhs
 
 def diff_power_simple : MathLangIO Unit := do
-  let lhs ← pushTerm "(d x (pow x 3))"
-  let rhs ← pushTerm "(* 3 (pow x 2))"
-  eqSat (rules := mathRules) (limit := 2)
+  let lhs ← parseTerm "(d x (pow x 3))"
+  let rhs ← parseTerm "(* 3 (pow x 2))"
+  eqSat (rules := mathRules) (limit := 5)
   let _ ← checkEquivalent lhs rhs
 
 def diff_power_harder : MathLangIO Unit := do
-  let _ ← pushTerm "(* x (- (* 3 x) 14))"
-  let lhs ← pushTerm "(d x (- (pow x 3) (* 7 (pow x 2))))"
-  let rhs ← pushTerm "(* x (- (* 3 x) 14))"
+  let _ ← parseTerm "(* x (- (* 3 x) 14))"
+  let lhs ← parseTerm "(d x (- (pow x 3) (* 7 (pow x 2))))"
+  let rhs ← parseTerm "(* x (- (* 3 x) 14))"
   eqSat (rules := mathRules) (limit := 60)
   let _ ← checkEquivalent lhs rhs
 
 def integ_one : MathLangIO Unit := do
-  let lhs ← pushTerm "(i 1 x)"
+  let lhs ← parseTerm "(i 1 x)"
   let rhs ← push (.sym "x")
   eqSat (rules := mathRules) (limit := 1)
   let _ ← checkEquivalent lhs rhs
 
 def integ_sin : MathLangIO Unit := do
-  let lhs ← pushTerm "(i (cos x) x)"
-  let rhs ← pushTerm "(sin x)"
+  let lhs ← parseTerm "(i (cos x) x)"
+  let rhs ← parseTerm "(sin x)"
   eqSat (rules := mathRules) (limit := 1)
   let _ ← checkEquivalent lhs rhs
 
 def integ_x : MathLangIO Unit := do
-  let lhs ← pushTerm "(i (pow x 1) x)"
-  let rhs ← pushTerm "(/ (pow x 2) 2)"
+  let lhs ← parseTerm "(i (pow x 1) x)"
+  let rhs ← parseTerm "(/ (pow x 2) 2)"
   eqSat (rules := mathRules) (limit := 1)
   let _ ← checkEquivalent lhs rhs
 
 def integ_part1 : MathLangIO Unit := do
-  let lhs ← pushTerm "(i (* x (cos x)) x)"
-  let rhs ← pushTerm "(+ (* x (sin x)) (cos x))"
+  let lhs ← parseTerm "(i (* x (cos x)) x)"
+  let rhs ← parseTerm "(+ (* x (sin x)) (cos x))"
   eqSat (rules := mathRules) (limit := 3)
   let _ ← checkEquivalent lhs rhs
+
+
 
 def integ_part2 : MathLangIO Unit := do
-  let lhs ← pushTerm "(i (* (cos x) x ) x)"
-  let rhs ← pushTerm "(+ (* x (sin x)) (cos x))"
+  let lhs ← parseTerm "(i (* (cos x) x ) x)"
+  let rhs ← parseTerm "(+ (* x (sin x)) (cos x))"
   eqSat (rules := mathRules) (limit := 3)
   let _ ← checkEquivalent lhs rhs
 
+ -- this passes without analysis, fails with analysis,
+ -- prob cause Int ≠ Floata
 def integ_part3 : MathLangIO Unit := do
-  let lhs ← pushTerm "(i (ln x) x)"
-  let rhs ← pushTerm "(- (* x (ln x)) x)"
-  eqSat (rules := mathRules) (limit := 3)
+  let lhs ← parseTerm "(i (ln x) x)"
+  let rhs ← parseTerm "(- (* x (ln x)) x)"
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs

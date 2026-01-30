@@ -5,98 +5,6 @@ import Leanegraph.languages.prop
 
 open EGraph
 
-def checkSameClassTests (id1 id2 : EClassId) (test : String := "") : PropIO Unit := do
-  let st ← get
-  let (_,c1) := st.uf.find! id1
-  let (_,c2) := st.uf.find! id2
-
-  if c1 != c2 then
-    IO.println s!" FAIL: {test}"
-    IO.println s!" ID {id1} -> Class {c1}"
-    IO.println s!" ID {id2} -> Class {c2}"
-
-def liftVar (s : String) : Pattern PropLang := Pattern.PatVar s
-def liftTerm (h : PropLang) (args : List (Pattern PropLang)) : Pattern PropLang := Pattern.PatTerm h (Array.mk args)
-
--- maybe I went a little overboard with matching spacing
-def pBool(b   : Bool               ) := liftTerm (.bool b) []
-def pAnd (a b : Pattern <| PropLang) := liftTerm (.and   ) [a, b]
-def pOr  (a b : Pattern <| PropLang) := liftTerm (.or    ) [a, b]
-def pNot (a   : Pattern <| PropLang) := liftTerm (.not   ) [a]
-def pImpl(a b : Pattern <| PropLang) := liftTerm (.impl  ) [a, b]
-def pSym (s   : String             ) := liftTerm (.sym s ) []
-
-instance : Inhabited (Pattern PropLang) := {
-  default := Pattern.PatVar "_"
-}
-macro "?" lhs:term : term => `(liftVar $lhs)
-
--- Make it cleaner by restructuring this as smallerSet ++ (distributive rules)
-def propRules : List (Rule PropLang Unit) := [
-  -- Def Imply
-  r* pImpl (?"a") (?"b") === pOr (pNot (?"a")) (?"b"),
-  -- Imply Flip
-  r* pOr (pNot (?"a")) (?"b") === pImpl (?"a") (?"b"),
-  -- Double Neg
-  r* pNot (pNot (?"a")) === (?"a"),
-  -- Double Neg Flip
-  r* ?"a" === pNot (pNot (?"a")), -- is the parenthesis necessary
-  -- Assoc Or
-  r* pOr (pOr (?"a") (?"b")) (?"c") === pOr (?"a") (pOr (?"b") (?"c")),
-  -- Dist and Or
-  r* pAnd (?"a") (pOr (?"b") (?"c")) === pOr (pAnd (?"a") (?"b")) (pAnd (?"a") (?"c")),
-  -- Dist Or And
-  r* pOr (?"a") (pAnd (?"b") (?"c")) === pAnd (pOr (?"a") (?"b")) (pOr (?"a") (?"c")),
-  -- Commutativity
-  r* pOr (?"a") (?"b")  === pOr (?"b") (?"a"),
-  r* pAnd (?"a") (?"b") === pAnd (?"b") (?"a"),
-  -- Lem
-  r* pOr (?"a") (pNot (?"a")) === pBool true,
-  -- Or True
-  r* pOr (?"a") (pBool true) === pBool true,
-  -- Or False
-  r* pOr (?"a") (pBool false) === (?"a"),
-  -- And true
-  r* pAnd (?"a") (pBool true) === (?"a"),
-  -- And false
-  r* pAnd (?"a") (pBool false) === (pBool false),
-  -- Contrapositive
-  r* pImpl (?"a") (?"b") === pImpl (pNot (?"b")) (pNot (?"a")),
-  -- Not True/False
-  r* pNot (pBool true) === pBool false,
-  r* pNot (pBool false) === pBool true,
-]
-
--- No distributive rules because that absolutely murders my laptop
-def smallerSet : List (Rule PropLang Unit) := [
-    -- Def Imply
-  r* pImpl (?"a") (?"b") === pOr (pNot (?"a")) (?"b"),
-  -- Imply Flip
-  r* pOr (pNot (?"a")) (?"b") === pImpl (?"a") (?"b"),
-  -- Double Neg Flip
-  r* ?"a" === pNot (pNot (?"a")), -- is the parenthesis necessary
-  -- Lem
-  r* pOr (?"a") (pNot (?"a")) === pBool true,
-  -- Commutativity
-  r* pOr (?"a") (?"b")  === pOr (?"b") (?"a"),
-  r* pAnd (?"a") (?"b") === pAnd (?"b") (?"a"),
-    -- Or True
-  r* pOr (?"a") (pBool true) === pBool true,
-  -- Or False
-  r* pOr (?"a") (pBool false) === (?"a"),
-  -- And true
-  r* pAnd (?"a") (pBool true) === (?"a"),
-  -- And false
-  r* pAnd (?"a") (pBool false) === (pBool false),
-  -- Contrapositive
-  r* pImpl (?"a") (?"b") === pImpl (pNot (?"b")) (pNot (?"a")),
-  -- Not True/False
-  r* pNot (pBool true) === pBool false,
-  r* pNot (pBool false) === pBool true,
-  -- lem_imply (see rust code)
-  r* pAnd (pImpl (?"a") (?"b")) (pImpl (pNot (?"a")) (?"c")) === pOr (?"b") (?"c")
-
-]
 
 /-
   Start Tests
@@ -267,7 +175,7 @@ def testAutomatedChain : PropIO Unit := do
   let _ ← runLine <| checkSameClass st t5
 
 -- #eval runTest testProveChain "ProveChain"
-
+/-
 def fullyAutomated : IO Unit := do
   test_fn_self
     (lhs := "(& (→ x y) (→ y z))")
@@ -282,5 +190,5 @@ def fullyAutomated : IO Unit := do
     (iterLimit := 5)
     (printLeft := true)
     (printRight := false)
-
+-/
  -- #eval fullyAutomated
