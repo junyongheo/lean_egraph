@@ -343,7 +343,7 @@ def union (id₁ id₂ : EClassId) (join : D → D → D) : EGraphM α D (EClass
                   eg with
                   uf := uf''
                   ecmap := (Std.HashMap.insert (Std.HashMap.erase eg.ecmap fromId) leaderClassId leaderClass)
-                  dirty :=  eg.dirty.push leaderClassId |>.push fromId
+                  dirty :=  eg.dirty.push leaderClassId
                 }
     return leaderClassId
 
@@ -414,10 +414,6 @@ def repair (id : EClassId) (join : D → D → D) : EGraphM α D (Unit) := do
   let canonId' ←  (lookupCanonicalEClassId canonId)
   let eClassFinal := eg'.ecmap.get! canonId' -- needs to be canonicalised again
 
-  -- Now canonicalize all nodes after unions
-  let curNodes ← eClass.nodes.mapM canonicalise
-  let newNodes := dedupArray curNodes
-
   -- do i need to recanon? -- 129REMOVE
   let eClassFinal' := { eClassFinal with nodes := (← eClassFinal.nodes.mapM canonicalise) }
   let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal' with parents := dedupArray newParents.toArray, nodes := dedupArray newNodes },}
@@ -452,7 +448,7 @@ partial def rebuild (join : D → D → D) (modify : EGraph α D → EClassId �
 -/
 
 def pushRun [Analysis α D] (en : ENode α) : EGraphM α D EClassId := do
-  let id ← push (← canonicalise en) Analysis.make
+  let id ← push en Analysis.make
   return id
 
 def unionRun [Analysis α D] (id₁ id₂ : EClassId) : EGraphM α D EClassId := do
