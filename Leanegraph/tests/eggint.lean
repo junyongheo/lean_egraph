@@ -198,12 +198,14 @@ def integerMathTest : EGraphGenericIO MathLang MathLangData Unit := do
 
   -- Start: (a * 2^3) / (c + (b*2 - b*2))
   printEGraph
-  let startExpr ← pushTerm "(Div (Mul a (Pow  2 3)) (Add c (Sub (Mul b 2) (Mul b 2))))"
+  let startExpr ← parseTerm "(Div (Mul a (Pow  2 3)) (Add c (Sub (Mul b 2) (Mul b 2))))"
   printEGraph
   -- Equiv: (a << 3) / (c * !!1)
-  let equivExpr ← pushTerm "(Div (LShift a 3) (Mul c (Not (Not 1))))"
+  let equivExpr ← parseTerm "(Div (LShift a 3) (Mul c (Not (Not 1))))"
 
 
   eqSat (rules := integerMathRules) (limit := 5)
 
   let _ ← checkEquivalent startExpr equivExpr
+
+#eval runTest integerMathTest

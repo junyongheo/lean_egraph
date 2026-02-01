@@ -127,6 +127,9 @@ def eqSat
   let mut i := 0
   let arrules := rules.toArray
   let _ ← runLineUnit <| rebuild (Analysis.join (α := α) (D := D)) Analysis.modify
+  let eginit ← get
+  let (_, rebuildEg) := (rebuild (Analysis.join (α := α)) (Analysis.modify)).run eginit
+  set rebuildEg
   while i < limit do
 
     let _ ← runLineUnit <| rebuildOpMap
@@ -147,7 +150,7 @@ def eqSat
     let (_, egEnd) := (rebuild (Analysis.join (α := α)) (Analysis.modify)).run egWrite
 
     --IO.println s!"ITERATION {i}"
-    --printEGraph
+    printEGraph
 
     set egEnd
 

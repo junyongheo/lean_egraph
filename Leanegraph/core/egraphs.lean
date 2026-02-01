@@ -414,9 +414,8 @@ def repair (id : EClassId) (join : D → D → D) : EGraphM α D (Unit) := do
   let canonId' ←  (lookupCanonicalEClassId canonId)
   let eClassFinal := eg'.ecmap.get! canonId' -- needs to be canonicalised again
 
-  -- do i need to recanon? -- 129REMOVE
-  let eClassFinal' := { eClassFinal with nodes := (← eClassFinal.nodes.mapM canonicalise) }
-  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal' with parents := dedupArray newParents.toArray, nodes := dedupArray newNodes },}
+  let eClassFinal' := { eClassFinal with nodes := (← eClassFinal.nodes.mapM canonicalise), }
+  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal' with parents := dedupArray newParents.toArray },}
 
 
 /-

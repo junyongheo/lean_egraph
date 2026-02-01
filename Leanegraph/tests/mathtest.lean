@@ -88,7 +88,6 @@ def halfAutomated : MathLangIO Unit := do
       r* pAdd (?"a") (pAdd (?"b") (?"c")) === pAdd (pAdd (?"a") (?"b")) (?"c")
       ])
 
--- #eval runTest halfAutomated
 
 /-
 
@@ -150,6 +149,9 @@ def math_powers : MathLangIO Unit := do
   eqSat (rules := mathRules) (limit := 2)
   let _ ← checkEquivalent lhs rhs
 
+
+
+
 def math_simplify_root : MathLangIO Unit := do
   let lhs ← parseTerm "(/ 1
        (- (/ (+ 1 (sqrt five))
@@ -159,6 +161,7 @@ def math_simplify_root : MathLangIO Unit := do
   let rhs ← parseTerm "(/ 1 (sqrt five))"
   eqSat (rules := mathRules) (limit := 5) (nodeLimit := 75000)
   let _ ← checkEquivalent lhs rhs
+
 
 def math_simplify_factor : MathLangIO Unit := do
     let lhs ← parseTerm "(* (+ x 3) (+ x 1))"
@@ -176,6 +179,7 @@ def math_diff_same : MathLangIO Unit := do
   printEGraph
   let _ ← checkEquivalent lhs rhs
 
+#eval runTest math_diff_same
 
 
 def math_diff_different : MathLangIO Unit := do
@@ -205,10 +209,12 @@ def math_diff_ln : MathLangIO Unit := do
   eqSat (rules := mathRules) (limit := 2)
   let _ ← checkEquivalent lhs rhs
 
+
+
 def diff_power_simple : MathLangIO Unit := do
   let lhs ← parseTerm "(d x (pow x 3))"
   let rhs ← parseTerm "(* 3 (pow x 2))"
-  eqSat (rules := mathRules) (limit := 5)
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
 
 def diff_power_harder : MathLangIO Unit := do
