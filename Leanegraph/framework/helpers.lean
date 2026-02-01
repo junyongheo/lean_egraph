@@ -150,7 +150,7 @@ def eqSat
     let (_, egEnd) := (rebuild (Analysis.join (α := α)) (Analysis.modify)).run egWrite
 
     --IO.println s!"ITERATION {i}"
-    printEGraph
+    --printEGraph
 
     set egEnd
 

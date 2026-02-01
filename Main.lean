@@ -18,8 +18,20 @@ def main : IO Unit := do
   let _ ← runTest testConstFold      "Constant Fold"
   -/
   -- let _ ← runTest testAnalysisCF "CF"
-  -- let _ ← runTest integ_part1 "Folds"
-  -- let _ ← runTest integ_part3 "aehea"
-  -- let _ ← runTest math_simplify_factor "ateha"
-  let _ ← runTest diff_power_simple
+  let _ ← runTest integ_part1 "Folds"
+  let _ ← runTest integ_part3 "intpt3"
+  let _ ← runTest math_simplify_factor "mathsimplifyfactor"
+  let _ ← runTest diff_power_simple "diffpowersimple"
+  let _ ← runTest math_simplify_root "mathsimplifyroot"
 -- #eval runTest groupTest
+
+
+-- #eval runTest diff_power_simple
+/-
+math_simplify_factor
+math_diff_same
+math_diff_simple1
+diff_power_simple
+integ_part1
+integ_part3
+-/

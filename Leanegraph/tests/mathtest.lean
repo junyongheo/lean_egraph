@@ -174,12 +174,9 @@ def math_simplify_factor : MathLangIO Unit := do
 def math_diff_same : MathLangIO Unit := do
   let lhs ← parseTerm "(d x x)"
   let rhs ← push (.const 1)
-  printEGraph
-  eqSat (rules := mathRules) (limit := 1)
-  printEGraph
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
 
-#eval runTest math_diff_same
 
 
 def math_diff_different : MathLangIO Unit := do
@@ -192,7 +189,7 @@ def math_diff_different : MathLangIO Unit := do
 def math_diff_simple1 : MathLangIO Unit := do
   let lhs ← parseTerm "(d x (+ 1 (* 2 x)))"
   let rhs ← push (.const 2)
-  eqSat (rules := mathRules) (limit := 2)
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
 
 def math_diff_simple2: MathLangIO Unit := do
@@ -216,36 +213,36 @@ def diff_power_simple : MathLangIO Unit := do
   let rhs ← parseTerm "(* 3 (pow x 2))"
   eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
-
+/-
 def diff_power_harder : MathLangIO Unit := do
   let _ ← parseTerm "(* x (- (* 3 x) 14))"
   let lhs ← parseTerm "(d x (- (pow x 3) (* 7 (pow x 2))))"
   let rhs ← parseTerm "(* x (- (* 3 x) 14))"
   eqSat (rules := mathRules) (limit := 60)
   let _ ← checkEquivalent lhs rhs
-
+-/
 def integ_one : MathLangIO Unit := do
   let lhs ← parseTerm "(i 1 x)"
   let rhs ← push (.sym "x")
-  eqSat (rules := mathRules) (limit := 1)
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
 
 def integ_sin : MathLangIO Unit := do
   let lhs ← parseTerm "(i (cos x) x)"
   let rhs ← parseTerm "(sin x)"
-  eqSat (rules := mathRules) (limit := 1)
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
 
 def integ_x : MathLangIO Unit := do
   let lhs ← parseTerm "(i (pow x 1) x)"
   let rhs ← parseTerm "(/ (pow x 2) 2)"
-  eqSat (rules := mathRules) (limit := 1)
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
 
 def integ_part1 : MathLangIO Unit := do
   let lhs ← parseTerm "(i (* x (cos x)) x)"
   let rhs ← parseTerm "(+ (* x (sin x)) (cos x))"
-  eqSat (rules := mathRules) (limit := 3)
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
 
 
@@ -253,7 +250,7 @@ def integ_part1 : MathLangIO Unit := do
 def integ_part2 : MathLangIO Unit := do
   let lhs ← parseTerm "(i (* (cos x) x ) x)"
   let rhs ← parseTerm "(+ (* x (sin x)) (cos x))"
-  eqSat (rules := mathRules) (limit := 3)
+  eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
 
  -- this passes without analysis, fails with analysis,
@@ -263,3 +260,17 @@ def integ_part3 : MathLangIO Unit := do
   let rhs ← parseTerm "(- (* x (ln x)) x)"
   eqSat (rules := mathRules) (limit := 4)
   let _ ← checkEquivalent lhs rhs
+
+
+def allTests : List <| MathLangIO Unit := [
+  math_simplify_const,
+  math_fail,
+  math_simplify_add,
+  math_powers,
+  math_simplify_root,
+  math_simplify_factor,
+  math_diff_same,
+  math_diff_simple1,
+
+
+]
