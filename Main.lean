@@ -18,11 +18,26 @@ def main : IO Unit := do
   let _ ← runTest testConstFold      "Constant Fold"
   -/
   -- let _ ← runTest testAnalysisCF "CF"
+  let ts← IO.monoMsNow
   let _ ← runTest integ_part1 "Folds"
+  let te← IO.monoMsNow
+  IO.println s!"Test IntegPt1: {te - ts} ms"
+  let ts← IO.monoMsNow
   let _ ← runTest integ_part3 "intpt3"
+  let te← IO.monoMsNow
+  IO.println s!"Test IntegPt3: {te - ts} ms"
+  let ts← IO.monoMsNow
   let _ ← runTest math_simplify_factor "mathsimplifyfactor"
+  let te← IO.monoMsNow
+  IO.println s!"Test MathSimpFac: {te - ts} ms"
+  let ts← IO.monoMsNow
   let _ ← runTest diff_power_simple "diffpowersimple"
+  let te← IO.monoMsNow
+  IO.println s!"Test DiffPowSimp: {te - ts} ms"
+  let ts← IO.monoMsNow
   let _ ← runTest math_simplify_root "mathsimplifyroot"
+  let te← IO.monoMsNow
+  IO.println s!"Test MathSimpRoot: {te - ts} ms"
 -- #eval runTest groupTest
 
 
