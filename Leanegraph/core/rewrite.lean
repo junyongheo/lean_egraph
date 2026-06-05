@@ -1,9 +1,9 @@
-import Leanegraph.core.egraphs
+import Leanegraph.core.Naive
 
-variable {α : Type _} [DecidableEq α] [Hashable α]
-variable {D : Type _} [Inhabited D]
+variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
+variable {D : Type _} [BEq D] [Inhabited D]
 
-namespace EGraph
+namespace Naive
 
 /-
   Define Pattern type
@@ -34,7 +34,7 @@ abbrev Dict α [DecidableEq α] [Hashable α] := Std.HashMap /-(Pattern α)-/ St
 
 
 inductive Pattern (α : Type _) where
-| PatTerm : (head : α) → (args : Array <| Pattern α) → Pattern α
+| PatTerm : (head : α) → (args : List <| Pattern α) → Pattern α
 | PatVar : String → Pattern α
 deriving Repr, Hashable --why decideableeq not work, look into
 
@@ -56,48 +56,46 @@ inductive Condition (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] wh
 structure Rule (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
   lhs : Pattern α
   rhs : Pattern α
-  cnd : Array (Condition α D) := Array.empty
+  cnd : List (Condition α D) := []
 -- deriving Repr -- I don't think other derivations required
 
 
 
 
 mutual
-partial def ematchlist (pl : Array (Pattern α)) (idl : Array EClassId) (idx : Nat) (d : Dict α) [Inhabited (Pattern α)] : EGraphM α D (Array (Dict α)) := do
-  if _lastIndex : idx = pl.size then
-    return if idx = idl.size then #[d] else #[]
-  else if _stillValidIdx : idx < pl.size ∧ idx < idl.size then
-    let p  := pl[idx] -- does lean get the proofs himself?
-    let id := idl[idx] -- same here
+def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : EGraphM α D <| List <| Dict α := do
+  match pl, idl with
+  | [], [] => return [d]
+  | p :: ps, id :: ids =>
     let canonId ← lookupCanonicalEClassId id
     let headMatches ← ematch p canonId d
-    headMatches.flatMapM (λ d' =>
-      ematchlist pl idl (idx+1) d'
+    let allMatches ← headMatches.flatMapM (λ d' =>
+      ematchlist ps ids d'
     )
-  else
-    return #[]
+    return allMatches
+  | _, _ => return []
 
 
 
-
-partial def ematch (p : Pattern α) (id : EClassId) (d : Dict α) [Inhabited (Pattern α)] : EGraphM α D <| Array <| Dict α := do
+def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α D <| List <| Dict α := do
   let canonId ← lookupCanonicalEClassId id
   match p with
   | Pattern.PatVar var =>
     match d.get? var with
     -- do key and id hold canonical ids? TODO: think... -- answer was no
-    | some key => if key = canonId then return #[d] else return #[]
-    | none     => return #[d.insert var canonId]
+    | some key => if key = canonId then return [d] else return []
+    | none     => return [d.insert var canonId]
   | Pattern.PatTerm phead pargs =>
     let eg ← get
-    match eg.ecmap.get? canonId with
-    | none      => return #[]
+    match eg.ecmap.lookup canonId with
+    | none      => return []
     | some ecls =>
       let matchingNodes := ecls.nodes.filter (λ n => n.head == phead)
       let nestedMatches ← matchingNodes.flatMapM (λ enode =>
-        ematchlist pargs enode.args 0 d
+        ematchlist pargs enode.args d
       )
       return nestedMatches
+
 end
 
 /-
@@ -157,18 +155,18 @@ def checkCondition [Analysis α D] (c : Condition α D) (d : Dict α) : EGraphM 
     return b
 
 
-def rewrite_search {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) : EGraphM α D <| Array (Rule α D × EClassId × Dict α) := do
+def rewrite_search {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) : EGraphM α D <| List (Rule α D × EClassId × Dict α) := do
   let eg ← get
 
   -- Search
-  let searchOp : Array EClassId :=
+  let searchOp : List EClassId :=
     match r.lhs with
     | Pattern.PatTerm head _ =>
-        (eg.opmap.getD head #[])
+        (eg.opmap.lookup head).getD []
     | Pattern.PatVar _ =>
-        eg.ecmap.toArray.map Prod.fst
+        eg.ecmap.map Prod.fst
 
-  let pMatches : Array (Rule α D × EClassId × Dict α) ← searchOp.flatMapM (λ id => do
+  let pMatches : List (Rule α D × EClassId × Dict α) ← searchOp.flatMapM (λ id => do
       let subs ← (ematch r.lhs (← lookupCanonicalEClassId id) Std.HashMap.emptyWithCapacity)
       return subs.map (λ sub => (r, id, sub)))
 
@@ -176,19 +174,19 @@ def rewrite_search {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [an
     r.cnd.allM (λc => checkCondition c d)
   ))
 
-
-def rewrite_apply {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) (condTrue : Array (EClassId × Dict α)) : EGraphM α D <| Unit := do
+/-
+def rewrite_apply {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) (condTrue : List (EClassId × Dict α)) : EGraphM α D <| Unit := do
   let joinFn := Analysis.join (α := α) (D := D)
   condTrue.forM (λ (lhsId, sub) => do
     let rhsId ← instantiate r.rhs sub
     let _     ← union lhsId rhsId joinFn
   )
-
-
-
-
-end EGraph
-
+-/
+def rewrite_apply {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [Analysis α D] [BEq D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) (condTrue : List (EClassId × Dict α)) : EGraphM α D <| Unit := do
+  condTrue.forM (λ (lhsId, sub) => do
+    let rhsId ← instantiate r.rhs sub
+    let _     ← union lhsId rhsId (Analysis.join (α := α) (D := D))
+  )
 /-
   function instantiate(e::EGraph, p::PatTerm , sub)
     push!( e, Term(p.head, [ instantiate(e,a,sub) for a in p.args ] ))

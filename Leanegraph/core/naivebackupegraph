@@ -7,7 +7,8 @@ import Leanegraph.core.TypeClass
 variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
 variable {D : Type _} [Inhabited D]
 
-/-
+namespace Naive
+
 structure ENode (α : Type _ ) where
   head : α
   args : List EClassId
@@ -17,27 +18,12 @@ structure EClass (α : Type _ ) where
   nodes : List (ENode α)
   parents : List (ENode α × EClassId)
 deriving Repr
--/
-
--- Abbrev instead of Define due to deriving problems
--- Also it's fundamentally an abbrev anyway
--- Although... NOTE: look into why that is? seems like a def
--- should be transparent enough to derive? do i have to do
--- some fancy @[transparent] or something if I want to do it that way?
-abbrev ENodeArgsType := List EClassId
-abbrev ENode (α : Type _) := genericENode α ENodeArgsType
-
-abbrev EClassNodesType (α : Type _) := List <| ENode α
-abbrev EClassParentsType (α : Type _) := List <| ENode α × EClassId
-abbrev EClass (α : Type _) := genericEClass α (EClassNodesType α) (EClassParentsType α)
-
 
 structure EGraph (α : Type _ ) [DecidableEq α] [Hashable α] where
   uf    : Batteries.UnionFind
-  ecmap : List <| EClassId × EClass α
-  hcons : List <| ENode α × EClassId -- TODO: does this make it less readable?
-  dirty : List <| EClassId × ENode α  -- hegg's version, keeps 2
-  -- dirty : List <| EClassId -- original
+  ecmap : List <| EClassId × (EClass α)
+  hcons : List <| (ENode α) × EClassId -- TODO: does this make it less readable?
+  -- dirty : List <| EClassId
   -- opmap : List <| α × (List EClassId)
 
 
@@ -111,30 +97,67 @@ def lookupECMap? : List (EClassId × EClass α) → EClassId → Option (EClass 
     | []                => none
     | (id, cls) :: xs => if id = eid then some cls else lookupECMap? xs eid
 
--- def lookupHashcons : List
+def repair (id : EClassId) : StateM (EGraph α) (Unit) := do
 
--- def insertHashcons :
+  let canonId ← lookupCanonicalEClassId id
+  let eg ← get
+  match lookupECMap? eg.ecmap canonId with
+  | some _ => pure () -- no op it exists go on
+  | none   => return () -- don't panic all is well
 
-instance : EGraphOps α ENodeArgsType (EClassNodesType α) (EClassParentsType α) (EGraph α) (List <| EClassId × EClass α)
-            (List <| (ENode α) × EClassId) (List <| EClassId × (EClass α)) (List <| EClassId × ENode α) where
+
+  let eClass := 1
+
+  -- Loop 1...
+  let (updateHCons, collisions) ← eClass.parents.foldlM (init := (eg.hcons, [])) (λ (hcons', collisions') (p : (ENode α × EClassId)) => do
+      let canon ← canonicalise p.1
+      let canonId ← lookupCanonicalEClassId p.2
+      let det := hcons'.erase p.1
+      match det.get? canon with
+      | some key => return (det, (canonId, key) :: collisions') -- keeps track of things to merge without collisions
+      | none     => return (det.insert canon canonId, collisions')
+  )
+
+  let eg ← get
+  let _ ← set { eg with hcons := updateHCons }
+
+  for (id₁, id₂) in collisions do
+    let _ ← union id₁ id₂ join
+
+  let curNodes ← eClass.nodes.mapM canonicalise
+  let newNodes := dedupArray curNodes
+
+  -- Loop 2...
+  let newParents ← eClass.parents.foldlM (init := Std.HashMap.emptyWithCapacity) (λ parents' (p : (ENode α × EClassId)) => do
+    let canon ← canonicalise p.1
+    let canonId ← lookupCanonicalEClassId p.2
+    match parents'.get? canon with
+    | some eid =>
+      let _ ← union eid canonId join
+      return parents'
+    | none    =>
+      return parents'.insert canon canonId
+  )
+  let eg' ← get
+  let canonId' ←  (lookupCanonicalEClassId canonId)
+  let eClassFinal := eg'.ecmap.get! canonId' -- needs to be canonicalised again
+
+  let eClassFinal' := { eClassFinal with nodes := (← eClassFinal.nodes.mapM canonicalise), }
+  let _ ← set { eg' with ecmap := eg'.ecmap.insert canonId' { eClassFinal' with parents := dedupArray newParents.toArray },}
+
+
+
+
+instance : EGraphOps (ENode α) (EClass α) (EGraph α) (List <| EClassId × EClass α) where
 
   -- ENode
-  ENode := ENode α
-
   lookupCanonicalEClassId := lookupCanonicalEClassId
   canonicalise := canonicalise
-  getArgs :=
-  setArgs
-  mapArgs
-
 
   -- EClass
-  EClass := EClass α
-
   makeEmptyEClass := makeEmptyEClass
   makeEClassFromNode := makeEClassFromNode
   mergeEClasses := mergeEClasses
-
   -- EGraph
   getSize := λ eg => eg.uf.size
   egrEmpty := ⟨Batteries.UnionFind.empty, [], []⟩
@@ -577,3 +600,5 @@ def unionRun [Analysis α D] (id₁ id₂ : EClassId) : EGraphM α D EClassId :=
 
 def rebuildRun [Analysis α D] : EGraphM α D (Unit) := do
   rebuild (Analysis.join (α := α)) Analysis.modify
+
+end EGraph
