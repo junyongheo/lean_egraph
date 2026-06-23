@@ -1,7 +1,8 @@
 import Leanegraph.core.Naive
+import Std.Data.HashMap
 
 variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
-variable {D : Type _} [BEq D] [Inhabited D]
+variable {D : Type _} [DecidableEq D] [Inhabited D]
 
 namespace Naive
 
@@ -67,7 +68,7 @@ def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : E
   match pl, idl with
   | [], [] => return [d]
   | p :: ps, id :: ids =>
-    let canonId ← lookupCanonicalEClassId id
+    let canonId ← lookupCanonicalEClassIdM id
     let headMatches ← ematch p canonId d
     let allMatches ← headMatches.flatMapM (λ d' =>
       ematchlist ps ids d'
@@ -78,7 +79,7 @@ def ematchlist (pl : List <| Pattern α) (idl : List EClassId) (d : Dict α) : E
 
 
 def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α D <| List <| Dict α := do
-  let canonId ← lookupCanonicalEClassId id
+  let canonId ← lookupCanonicalEClassIdM id
   match p with
   | Pattern.PatVar var =>
     match d.get? var with
@@ -87,7 +88,7 @@ def ematch (p : Pattern α) (id : EClassId) (d : Dict α) : EGraphM α D <| List
     | none     => return [d.insert var canonId]
   | Pattern.PatTerm phead pargs =>
     let eg ← get
-    match eg.ecmap.lookup canonId with
+    match ecmapLookup eg canonId with
     | none      => return []
     | some ecls =>
       let matchingNodes := ecls.nodes.filter (λ n => n.head == phead)
@@ -132,23 +133,23 @@ end
 
 def instantiate [Analysis α D] (p : Pattern α) (d : Dict α) : EGraphM α D <| EClassId := do
   match p with
-  | Pattern.PatVar var => return ← lookupCanonicalEClassId (d.get! var)
+  | Pattern.PatVar var => return ← lookupCanonicalEClassIdM (d.get! var)
   | Pattern.PatTerm phead pargs =>
     -- push ⟨phead, List.map (λ a => instantiate a d) pargs⟩ -- maybe do this in multiple steps -- and in a monadmap
     let newArgs ← pargs.mapM (λ a => instantiate a d)
-    push ⟨phead, newArgs⟩ Analysis.make
+    pushM ⟨phead, newArgs⟩
     -- push ⟨phead, ← pargs.mapM (λ a ↦ instantiate a d)⟩ -- can be done in one step like this
     -- still keep the two line definition for readability
 
 def checkCondition [Analysis α D] (c : Condition α D) (d : Dict α) : EGraphM α D <| Bool := do
   match c with
   | Condition.Equal p1 p2 =>
-    let id₁ ← lookupCanonicalEClassId (← instantiate p1 d)
-    let id₂ ← lookupCanonicalEClassId (← instantiate p2 d)
+    let id₁ ← lookupCanonicalEClassIdM (← instantiate p1 d)
+    let id₂ ← lookupCanonicalEClassIdM (← instantiate p2 d)
     return id₁ = id₂
   | Condition.NotEqual p1 p2 =>
-    let id₁ ← lookupCanonicalEClassId (← instantiate p1 d)
-    let id₂ ← lookupCanonicalEClassId (← instantiate p2 d)
+    let id₁ ← lookupCanonicalEClassIdM (← instantiate p1 d)
+    let id₂ ← lookupCanonicalEClassIdM (← instantiate p2 d)
     return id₁ ≠ id₂
   | Condition.CustomLookup fn =>
     let b ← fn d
@@ -159,34 +160,32 @@ def rewrite_search {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [an
   let eg ← get
 
   -- Search
-  let searchOp : List EClassId :=
-    match r.lhs with
-    | Pattern.PatTerm head _ =>
-        (eg.opmap.lookup head).getD []
-    | Pattern.PatVar _ =>
-        eg.ecmap.map Prod.fst
+  let searchIds : List EClassId := eg.ecmap.map Prod.fst
 
-  let pMatches : List (Rule α D × EClassId × Dict α) ← searchOp.flatMapM (λ id => do
-      let subs ← (ematch r.lhs (← lookupCanonicalEClassId id) Std.HashMap.emptyWithCapacity)
-      return subs.map (λ sub => (r, id, sub)))
+
+  let pMatches ← searchIds.flatMapM (fun id => do
+    let canonId ← lookupCanonicalEClassIdM id
+    let subs ← ematch r.lhs canonId Std.HashMap.emptyWithCapacity
+    return subs.map (fun sub => (r, id, sub)))
+
 
   return (← pMatches.filterM (λ (r, _, d) => do
     r.cnd.allM (λc => checkCondition c d)
   ))
 
-/-
-def rewrite_apply {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [analysis : Analysis α D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) (condTrue : List (EClassId × Dict α)) : EGraphM α D <| Unit := do
-  let joinFn := Analysis.join (α := α) (D := D)
+
+
+def rewrite_apply [Analysis α D] (r : Rule α D) (condTrue : Array (EClassId × Dict α)) : EGraphM α D <| Unit := do
   condTrue.forM (λ (lhsId, sub) => do
     let rhsId ← instantiate r.rhs sub
-    let _     ← union lhsId rhsId joinFn
+    let _     ← unionM lhsId rhsId
   )
--/
-def rewrite_apply {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [Analysis α D] [BEq D] [Inhabited D] [Inhabited (Pattern α)] (r : Rule α D) (condTrue : List (EClassId × Dict α)) : EGraphM α D <| Unit := do
-  condTrue.forM (λ (lhsId, sub) => do
-    let rhsId ← instantiate r.rhs sub
-    let _     ← union lhsId rhsId (Analysis.join (α := α) (D := D))
-  )
+
+
+
+
+end Naive
+
 /-
   function instantiate(e::EGraph, p::PatTerm , sub)
     push!( e, Term(p.head, [ instantiate(e,a,sub) for a in p.args ] ))

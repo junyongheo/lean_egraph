@@ -7,7 +7,7 @@ import Batteries.Data.UnionFind
 variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
 variable {D : Type _} [DecidableEq D] [Inhabited D]
 
-namespace Opt
+namespace Naive
 
 abbrev EClassId := Nat
 
@@ -450,4 +450,4 @@ def unionRun [Analysis α D] (id₁ id₂ : EClassId) : EGraphM α D EClassId :=
 def rebuildRun [Analysis α D] : EGraphM α D (Unit) := do
   rebuildHegg
 
-end Opt
+end Naive

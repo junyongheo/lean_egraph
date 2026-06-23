@@ -1,0 +1,73 @@
+def push {D : Type _} [Inhabited (EClass α D)] [Inhabited D] (en : ENode α) (make : ENode α → List D → D): EGraphM α D (EClassId) := do
+  let en' ← canonicalise en
+  match ← findClass en' with
+  | some ecId =>
+    return ecId
+  | none =>
+    let eg ← get
+    let curSize := eg.size
+    let ecmap' := updateParents eg.ecmap en' curSize
+    let childData := en'.args.map (λ id =>
+      ((eg.ecmap.lookup id).getD EClass.empty).data
+    )
+
+
+    let ecmap'' := (curSize, (EClass.fromNode en' (make en' childData))) :: ecmap'
+    let hcons' := (en', curSize) :: eg.hcons.filter (λ hc => hc.1 != en')
+
+    let curList := (eg.opmap.lookup en'.head).getD []
+    set { eg with
+            uf := eg.uf.push,
+            ecmap := ecmap'',
+            hcons := hcons',
+            opmap := (en'.head, curSize :: curList) :: eg.opmap
+            dirty := (curSize, en') :: eg.dirty
+            aldrt := (curSize, en') :: eg.aldrt
+        }
+    return curSize
+
+def union (id₁ id₂ : EClassId) (join : D → D → D) : EGraphM α D (EClassId) := do
+
+  -- Get canonical classes for the inputs
+  let id₁' ← lookupCanonicalEClassId id₁
+  let id₂' ← lookupCanonicalEClassId id₂
+  -- In same class, nothing more to do
+  if id₁' = id₂' then
+    return id₁'
+  -- In different class, we do work
+  else
+    -- moved this here for less operations?
+    let eg ← get
+    -- Update union find
+    let uf' := eg.uf.union! id₁' id₂'
+    let (uf''', leaderClassId) := uf'.find! id₁'
+    -- more path compression........?
+    let (uf'',  _) := uf'''.find! id₂'
+    -- Update EClass, EClassMap and Hashcons with new UF canonies
+    let fromId := if id₁' = leaderClassId then id₂' else id₁'
+    -- merge std hashmap union
+    -- also touch parents -- not in egg style deferred
+    let lCls := (eg.ecmap.lookup leaderClassId).getD EClass.empty
+    let sCls := (eg.ecmap.lookup fromId).getD EClass.empty
+    let mergedClass := EClass.merge lCls sCls join
+
+    let newEcmap := (leaderClassId, mergedClass) :: eg.ecmap.filter (λ (id, _) => id ≠ fromId && id ≠ leaderClassId)
+
+    let newDirty := (sCls.parents.map Prod.swap) ++ eg.dirty
+
+    let newData := join lCls.data sCls.data
+    let nAnlDrt :=
+      (if newData != sCls.data then (sCls.parents.map Prod.swap) else [])
+      ++
+      (if newData != lCls.data then (lCls.parents.map Prod.swap) else [])
+      ++
+      eg.aldrt
+
+    let _ ← set {
+                  eg with
+                  uf := uf''
+                  ecmap := newEcmap
+                  dirty := newDirty
+                  aldrt := nAnlDrt
+                }
+    return leaderClassId
