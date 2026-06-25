@@ -67,8 +67,6 @@ def UF.isValid (uf : UF) : Prop :=
 def UF.isCanon (uf : UF) : Prop :=
   ∀ id cid, (id, cid) ∈ uf → uf.find cid = cid
 
-
-
 theorem UF.pushIsCanon (uf : UF) :
     let (newUf, newId) := uf.push; newUf.find newId = newId := by
   simp[push, find]
@@ -106,9 +104,18 @@ theorem UF.lookupIsMem
       simp[hpleasesimpimbegging] at h
       simp[hk'', ih h]
 
+/-
+-- Is Not?
+theorem UF.findIsMem
+    (uf : UF) (id cid : EClassId) (h : uf.find id = some cid)
+      : (id, cid) ∈ uf := by
+  induction uf with
+  | nil =>
+    simp at h
+-/
 
 
-theorem UF.findIdem (uf : UF) (h : uf.isCanon) (id : EClassId) :
+theorem UF.findIdempotent (uf : UF) (h : uf.isCanon) (id : EClassId) :
     uf.find (uf.find id) = uf.find id := by
   cases hL : List.lookup id uf with
   | none =>
@@ -260,12 +267,18 @@ theorem UF.pushPreservesCanon (uf : UF) (hC : uf.isCanon) (hV : uf.isValid):
 -- We would end up doing intro h, intro id₁ id₂ anyway
 
 
+
+
+
+
+
 /-
   For a UF that isCanon, after Union it blijfs canon.
   Idea:
 
 -/
-theorem UF.unionPreservesCanon (uf : UF) (h : uf.isCanon) (hV : uf.isValid) (id₁ id₂ : EClassId) :
+/-
+theorem UF.unionPreservesCanonFailed (uf : UF) (h : uf.isCanon) (hV : uf.isValid) (id₁ id₂ : EClassId) :
     (uf.union id₁ id₂).fst.isCanon := by
   unfold isCanon
   intro id cid hmem
@@ -305,18 +318,142 @@ theorem UF.unionPreservesCanon (uf : UF) (h : uf.isCanon) (hV : uf.isValid) (id�
       Situation: id₁ and id₂ were different classes, so they were merged into one.
       Goal: Show that this preserves canonicity
       Intuition: Everything except for the one thing that x.snd = uf.find id₂ is unchanged
-      Idea 1: Can we split on the condition?
-      Idea 2: Induction on the map? Then split case? -- no, the ind. hyp. is completely off
-      Idea 3: Helper Lemma?
     -/
-    simp
-    unfold find
+    simp [UF.union] at hmem
+    simp [hNeq] at hmem
+
+    rcases List.mem_map.mp hmem with ⟨p, hp, rfl⟩
+
+    rcases p with ⟨id', cid'⟩
+
+    by_cases hcid : cid' == uf.find id₂
 
 
     sorry
+-/
+
+-- Helper theorem for union preserves canon proof
+-- Map then Lookup == Lookup then Map
+theorem UF.lookupMap (uf : UF) (k leader₁ leader₂ : EClassId) :
+    (uf.map (fun p => if p.2 == leader₂ then (p.1, leader₁) else p)).lookup k
+    = (uf.lookup k).map (fun l => if l == leader₂ then leader₁ else l) := by
+  induction uf with
+  | nil => simp
+  | cons head rest ih =>
+    rcases head with ⟨m,l⟩
+    simp [List.map, List.lookup]
+    by_cases hm : k == m
+    case pos =>
+      simp[hm]
+      -- WHAT A FANCY MOVE
+      by_cases hl : l = leader₂ <;> simp[hl, hm]
+    case neg =>
+      have hnm : (k == m) = false := by simp[hm]
+      by_cases hl : l = leader₂
+      -- i would do the <;> again if only i could figure out how to do multiple
+      case pos =>
+        simp[hl]
+        simp[hnm]
+        simp at ih
+        exact ih
+      case neg =>
+        simp[hl]
+        simp[hm]
+        simpa using ih
+
+
+theorem UF.unionPreservesCanon (uf : UF) (h : uf.isCanon) (id₁ id₂ : EClassId)
+    : (uf.union id₁ id₂).fst.isCanon := by
+  unfold isCanon union
+  intro id cid hmem
+  by_cases hSame : (uf.find id₁ == uf.find id₂)
+  · -- IDs already same class, no change
+    simp at hSame
+    simp[isCanon] at h
+    simp[hSame] at hmem
+    simp[hSame]
+    have hcanon := h id cid hmem
+    exact hcanon
+  · -- Diff classes, change does happen
+    simp[hSame]
+    simp[hSame] at hmem
+    simp[isCanon] at h
+    simp[find]
+    rw[←UF.find, ←UF.find, ←UF.find]
+    -- SOMEDAY: figure out how to rewrite a specific instance
+    rw[find]
+    -- map commute(?)
+    have hcomm := lookupMap uf cid (uf.find id₁) (uf.find id₂)
+    simp at hcomm
+    simp[hcomm]
+
+    rcases hmem with ⟨a, b, habmem, hb⟩
+
+    by_cases hrewr : b = uf.find id₂
+    case pos =>
+      simp[hrewr] at hb
+      rcases hb with ⟨haid, h1cid⟩
+
+      -- split again on lookup of option
+      cases hLookup : List.lookup cid uf with
+      | none =>
+        simp
+      | some val =>
+        simp
+
+        have hNeq : uf.find id₂ ≠ cid := by
+          intro heq
+          /-
+          have hidsameclass : uf.find id₁ = uf.find id₂ := by
+            simp[h1cid, heq]
+          simp[hidsameclass] at hSame
+          -/
+          simp[h1cid, heq] at hSame
+
+        -- canon of cid is val
+        -- canon of id₁ is cid
+        -- therefore cid = val?
+        -- also id₂ ≠ cid so ifte branch can be simplified
+        have hCidCanon : uf.find cid = cid := by
+          rw[←h1cid]
+          apply findIdempotent uf h id₁
+
+        have hvec : val = cid := by
+          rw[←hCidCanon]
+          unfold find
+          simp[hLookup]
 
 
 
+        -- Substitute val with cid in our target if-statement
+
+        simp[hvec]
+        simp[hNeq.symm]
+
+    case neg =>
+      simp[hrewr] at hb
+      rcases hb with ⟨haid, hbcid⟩
+      simp[haid, hbcid] at habmem
+      have cidcanon := h id cid habmem
+      simp[haid, hbcid] at *
+      -- WHAT???
+      cases hLookup : List.lookup cid uf with
+      | none =>
+        simp
+      | some val =>
+
+        have hvec : val = cid := by
+          rw[←cidcanon]
+          unfold find
+          simp[hLookup]
+
+        simp [hvec, hrewr]
 
 
 end Naive
+
+/-
+      Idea 1: Can we split on the condition?
+      Idea 2: Induction on the map? Then split case? -- no, the ind. hyp. is completely off
+      Idea 3: Helper Lemma?
+-/
