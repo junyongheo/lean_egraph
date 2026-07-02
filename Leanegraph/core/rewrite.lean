@@ -160,7 +160,7 @@ def rewrite_search {α : Type _} {D : Type _} [DecidableEq α] [Hashable α] [an
   let eg ← get
 
   -- Search
-  let searchIds : List EClassId := eg.ecmap.map Prod.fst
+  let searchIds : List EClassId := eg.ecmap.val.map Prod.fst
 
 
   let pMatches ← searchIds.flatMapM (fun id => do
