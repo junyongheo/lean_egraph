@@ -1,19 +1,27 @@
-# First implementation at E-Graphs in Lean4
+# ~~First~~ Second(!!) implementation at E-Graphs in Lean4
+
+Notes to myself:
+  - Questions to answer, code to fix are marked "TODO:" 
+  - One day things to do are marked "SOMEDAY:" (for me, not you)
 
 Project Structure:
 
 core: Contains the core files for e-graph operations
-  - egraphs.lean
-    - Over a generic language
-    - Contains E-Node, E-Class, E-Graph implementations
-    - Functions that operate on these implementations (push, merge, union)
-    - Some stray comments and questions for myself
+  - NaiveDefs.lean
+    - Contains the E-Graph and Analysis definitions for the naïve case
+  - Naive.lean
+    - Contains the core e-graph functions, such as push, union, canonicalise...
+  - ListAsMaps.lean
+    - A basic map-like structure used for the e-class map and hashcons
+  - UnionFind.lean
+    - UnionFind implementation, uses a flat structure instead of a tree s.t. every nodep points directly to its canonical representative
+  - Invariants.lean
+    - Contains the theorems to prove and propositions needed for the e-graph. TODO: partition into more files?
   - rewrite.lean
     - Pattern, Rule implementations
     - EMatch, Instantiate, Rewrite functions
     - Comments somewhat cleaned up, but not fully
     - E-Matching is implemented as a very basic tree backtracking
-    - Attempted to optimise by keeping a map of operators to eclasses (see opmap field in egraph in egraph.lean)
 
 tests: contains the testing framework and tests
   - tests.lean
@@ -25,23 +33,8 @@ tests: contains the testing framework and tests
     - WIP: pattern matching and rewrite tests
 
 
-  - old_egraphs.lean
-    - egraphs.lean but for a simpler language with only add/mul
-    - Left as reference
-    - (for me) left uncleaned for my own understanding
-    - (for not me) may be helpful to understand what led me to a particular 
-
-Simplifications
-1. Uses Nat instead of Fin n for no dependent typing reasons. Lots of runtime checks with .get! and .find! operations that panic
-1. Uses Lists instead of Array for easier implementation. Focusing initially on getting it running rather than performance
-
 TODO: 
-1. ~~Figure out best namespace practice and put egraphs in separate namespace~~
 1. Generic-ise some of the testing infrastructure
-5. Finish writing test set
-1. Organise code into different files
-2. Change the lists to array
 3. Minor changes and ideas marked with "TODO" in comments
 4. Cleanup code and comments to clarify decisions
-6. Cleanup functions by extracting functions from blocks of code when possible
 6. Think of a less boring name than lean egraph
