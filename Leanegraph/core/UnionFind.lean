@@ -152,6 +152,47 @@ theorem UF.findIdempotent (uf : UF) (h : uf.isCanon) (id : EClassId) :
     -/
     exact lookupIsMem uf id n hL
 
+theorem UF.findReturnsValid (uf : UF) (h : uf.isValid) (id : EClassId)
+    (hID : uf.isValidID id) : uf.find id < uf.size := by
+  unfold UF.find
+  cases hOpt : List.lookup id uf with
+  | none =>
+    simp[isValidID] at hID
+    simp[hID]
+  | some val =>
+    simp
+    simp[isValidID] at hID
+    have hmem := lookupIsMem uf id val hOpt
+    simp[isValid] at h
+    rcases h id val hmem with ⟨_, ans⟩
+    exact ans
+
+theorem UF.unionPreservesSize (uf : UF) (id₁ id₂ : EClassId):
+    (uf.union id₁ id₂).fst.size = uf.size := by
+  unfold union
+  simp
+  split
+  case isTrue eq =>
+    simp only -- but where
+  case isFalse nEq =>
+    rw[UF.size]
+    rw[List.length_map]
+    rw[UF.size]
+    -- thanks simp?
+
+theorem UF.unionLeaderValid (uf : UF) (id₁ id₂ : EClassId)
+  (h₁ : id₁ < uf.size) (_ : id₂ < uf.size) (hValid : uf.isValid) :
+    (uf.union id₁ id₂).snd < uf.size := by
+  simp[union]
+  have v₁ := UF.findReturnsValid uf hValid id₁ h₁
+  split
+  case isTrue h =>
+    -- have v₂ := UF.findReturnsValid uf hValid id₂ h₂
+    exact v₁
+  case isFalse h =>
+    exact v₁
+
+
 
 
 theorem UF.pushPreservesValid (uf : UF) (h : uf.isValid) :
@@ -364,20 +405,7 @@ theorem UF.lookupMap (uf : UF) (k leader₁ leader₂ : EClassId) :
         simpa using ih
 
 
-theorem UF.findReturnsValid (uf : UF) (h : uf.isValid) (id : EClassId)
-    (hID : uf.isValidID id) : uf.find id < uf.size := by
-  unfold UF.find
-  cases hOpt : List.lookup id uf with
-  | none =>
-    simp[isValidID] at hID
-    simp[hID]
-  | some val =>
-    simp
-    simp[isValidID] at hID
-    have hmem := lookupIsMem uf id val hOpt
-    simp[isValid] at h
-    rcases h id val hmem with ⟨_, ans⟩
-    exact ans
+
 
 
 /-

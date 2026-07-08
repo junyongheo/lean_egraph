@@ -192,6 +192,7 @@ def canonicalise (eg : EGraph α D) (en : ENode α) : ENode α :=
     What is the state of the hashcons before this? -- can be anything, can't enforce anything
     doesn't make hashcons stale, either adds a new node as new class or no-op
 -/
+/-
 def push [Analysis α D] (eg : EGraph α D) (en : ENode α) : EGraph α D × EClassId :=
   let en' := canonicalise eg en
   match hcLookup eg en' with
@@ -214,6 +215,30 @@ def push [Analysis α D] (eg : EGraph α D) (en : ENode α) : EGraph α D × ECl
       dirty := curSize :: eg.dirty,
       aldrt := curSize :: eg.aldrt
     } curSize, curSize)
+-/
+def push [Analysis α D] (eg : EGraph α D) (en : ENode α) : EGraph α D × EClassId :=
+  let en' := canonicalise eg en
+  match hcLookup eg en' with
+  | some id => (eg, id)
+  | none =>
+    let (newUf, curSize) := eg.uf.push
+    let ecmap'  := updateParents eg.ecmap en' curSize
+    let childData := en'.args.map (λ id =>
+      ((ecmapLookup eg id).getD EClass.empty).data
+      -- technically says even if doesn't exist in ecmap we are fine?
+      -- so should not do that
+    )
+    let ecmap'' := insertECMap ecmap' curSize (EClass.fromNode en' (Analysis.make en' childData))
+    let hcons'  := insertHCons eg.hcons en' curSize
+
+    ({eg with
+      uf := newUf,
+      ecmap := ecmap'',
+      hcons := hcons',
+      dirty := curSize :: eg.dirty,
+      aldrt := curSize :: eg.aldrt
+    }, curSize)
+
 
 def union [Analysis α D] (eg : EGraph α D) (id₁ id₂ : EClassId) : EGraph α D × EClassId :=
 
@@ -262,7 +287,7 @@ def union [Analysis α D] (eg : EGraph α D) (id₁ id₂ : EClassId) : EGraph �
       aldrt := newAldrt
     }
 
-    (Analysis.modify eg' leaderClassId, leaderClassId)
+    (eg', leaderClassId)
 
 
 def repairAnalysis [Analysis α D] (eg : EGraph α D) (id : EClassId) : EGraph α D :=
@@ -413,7 +438,8 @@ def lookupCanonicalEClassIdM (id : EClassId) : EGraphM α D EClassId := do
 
 def pushM [Analysis α D] (en : ENode α) : EGraphM α D EClassId := do
   let (eg', id) := push (← get) en
-  discard <| set eg'
+  let eg'' := Analysis.modify eg' id
+  discard <| set eg''
   return id
 
 def unionM [Analysis α D] (id₁ id₂ : EClassId) : EGraphM α D EClassId := do

@@ -263,28 +263,233 @@ theorem pushPreservesAlwaysInvariants [Analysis α D] (eg : EGraph α D)
     -- show that pushing does not change the validity of the unionfind
     -- do we not have this already?
     have isValid := UF.pushPreservesValid _ hUfv
+
     unfold push
     dsimp
     split
     ·
       exact hUfv
-    ·
-      unfold Analysis.modify
-      dsimp[isValid]
-
-
-      sorry
+    case h_2 optEid noneLookup =>
+      simp[isValid]
   · -- isCanon
     -- show that pushing does not change the canonicity of the unionfind
-    sorry
+    have isCanon := UF.pushPreservesCanon _ hUfc hUfv
+    unfold push
+    dsimp
+    split
+    case h_1 ecId id lookupSome =>
+      simp[hUfc]
+    case h_2 eid lookupNone =>
+      exact isCanon
   · -- hconsToECmap?
-    sorry
-
+    constructor
+    ·
+      unfold push
+      dsimp
+      split
+      case h_1 opeid id lookupSome =>
+        exact hDv
+      case h_2 oid lookupNone =>
+        simp only
+        unfold EGraph.dirtyValid
+        intro id hmem
+        dsimp at *
+        unfold UF.isValidID
+        have hmem' := List.mem_cons.mp hmem
+        rcases hmem' with hnew | hold
+        ·
+          simp[hnew, UF.push, UF.size]
+        ·
+          simp[UF.push, UF.size]
+          simp[UF.push, UF.size] at hmem
+          rcases hmem with rfl | hold
+          ·
+            simp
+          ·
+            have hid := hDv id hold
+            simp[UF.isValidID] at hid
+            simp[UF.size] at hid
+            have hpo : id < List.length eg.uf + 1 := Nat.lt_trans hid (Nat.lt_add_one _)
+            exact hpo
+    ·
+      constructor
+      ·
+        -- exactly the same as the above branch, which makes me
+        -- feel like im doing something wrong?
+        unfold push
+        dsimp only
+        split
+        case h_1 oeid id lookupSome =>
+          exact hAv
+        case h_2 oeid lookupNone =>
+          simp only
+          unfold EGraph.aldrtValid
+          intro id hmem
+          dsimp at *
+          unfold UF.isValidID
+          have hmem' := List.mem_cons.mp hmem
+          rcases hmem' with hnew | hold
+          ·
+            simp[hnew, UF.push, UF.size]
+          ·
+            simp[UF.push, UF.size]
+            simp[UF.push, UF.size] at hmem
+            rcases hmem with rfl | hold
+            ·
+              simp
+            ·
+              have hid := hAv id hold
+              simp[UF.isValidID, UF.size] at hid
+              exact Nat.lt_trans hid (Nat.lt_add_one _)
+      ·
+        unfold push
+        dsimp only
+        split
+        case h_1 oid id lookupSome =>
+          simpa
+        case h_2 oid lookupNone =>
+          simp only
+          unfold EGraph.hconsToEcmap
+          intro en₁ id₁ hLookup
+          simp[hcLookup] at hLookup
+          sorry
 
 theorem unionPreservesAlwaysInvariants [Analysis α D] (eg : EGraph α D)
-  (h : eg.alwaysInvariants) (id₁ id₂ : EClassId) :
-    (union eg id₁ id₂).1.alwaysInvariants := by
-  sorry
+  (h : eg.alwaysInvariants) (id₁ id₂ : EClassId)
+    (h₁ : id₁ < eg.uf.size) (h₂ : id₂ < eg.uf.size) :
+      (union eg id₁ id₂).1.alwaysInvariants := by
+  unfold EGraph.alwaysInvariants
+  unfold EGraph.alwaysInvariants at h
+  rcases h with ⟨hUfwf, hDv, hAv, hHc⟩
+  rcases hUfwf with ⟨hv, hc⟩
+  repeat constructor
+  · -- isValid
+    simp[UF.isValid]
+    intro id cid hmem
+
+    constructor
+    ·
+      simp[UF.isValidID]
+      simp[UF.isValid] at hv
+      have yeah := hv id cid _
+      sorry
+      /-
+      dsimp[union] at hmem
+      split at hmem
+      case isTrue aa =>
+        simp at hmem
+
+        sorry
+      case isFalse hh =>
+        dsimp at hmem
+
+        sorry
+      -/
+    ·
+
+      sorry
+
+  · -- isCanon
+    have hUPC := UF.unionPreservesCanon eg.uf hc id₁ id₂
+    dsimp[union]
+    split
+    case isTrue aa =>
+      exact hc
+    case isFalse bb =>
+      simp[lookupCanonicalEClassId] at *
+      simp[UF.union]
+      simp[UF.findIdempotent eg.uf hc id₁] at *
+      simp[UF.findIdempotent eg.uf hc id₂] at *
+      simpa[UF.union, bb] using hUPC
+      /-
+      dsimp[UF.union]
+      simp[lookupCanonicalEClassId] at *
+      simp[UF.findIdempotent eg.uf hc, bb]
+      simp [UF.isCanon] at hc
+      -/
+  repeat constructor -- it is obviously possible why did you stop
+  · -- dirtyValid
+    simp[EGraph.dirtyValid]
+    intro id hmem
+    simp[UF.isValidID]
+    unfold union
+    dsimp
+    split
+    case isTrue wasEq =>
+      unfold EGraph.dirtyValid at hDv
+      simp[union, wasEq] at hmem
+      have valid := hDv id hmem
+      simp[UF.isValidID] at *
+      exact valid
+    case isFalse nEq =>
+      --simp[union, nEq] at hmem
+      unfold union at hmem
+      dsimp at hmem
+      simp[nEq] at hmem
+      simp at *
+      have noLength := UF.unionPreservesSize eg.uf (lookupCanonicalEClassId eg id₁) (lookupCanonicalEClassId eg id₂)
+      simp[noLength]
+      rcases hmem with hnew | hold
+      ·
+        simp[hnew]
+        -- have hlv' := UF.unionLeaderValid eg.uf id₁ id₂ h₁ h₂ hv
+        have v₁ := UF.findReturnsValid eg.uf hv id₁ h₁ -- idk what goes in _ actually lol
+        have v₂ := UF.findReturnsValid eg.uf hv id₂ h₂
+        have hlv := UF.unionLeaderValid eg.uf
+          (lookupCanonicalEClassId eg id₁)
+          (lookupCanonicalEClassId eg id₂)
+          v₁ v₂ hv
+        exact hlv
+      ·
+        unfold EGraph.dirtyValid at hDv
+        exact hDv id hold
+
+  repeat constructor
+  · -- aldrtValid
+    simp[EGraph.aldrtValid]
+    intro id hmem
+    simp[UF.isValidID]
+    unfold union
+    dsimp
+    split
+    case isTrue wasEq =>
+      unfold EGraph.aldrtValid at hAv
+      simp[union, wasEq] at hmem
+      have valid := hAv id hmem
+      simp[UF.isValidID] at *
+      exact valid
+    case isFalse nEq =>
+      unfold union at hmem
+      dsimp at hmem
+      simp[nEq] at hmem
+      simp
+      have noLength := UF.unionPreservesSize eg.uf (lookupCanonicalEClassId eg id₁) (lookupCanonicalEClassId eg id₂)
+      simp[noLength]
+      rcases hmem with hnew | hold
+      ·
+        simp[hnew]
+        have v₁ := UF.findReturnsValid eg.uf hv id₁ h₁
+        have v₂ := UF.findReturnsValid eg.uf hv id₂ h₂
+        exact UF.unionLeaderValid eg.uf
+          (lookupCanonicalEClassId eg id₁) (lookupCanonicalEClassId eg id₂)
+          v₁ v₂ hv
+      ·
+        rcases hold
+        case inr.inl h =>
+          rcases h with ⟨_, b⟩
+          have v₁ := UF.findReturnsValid eg.uf hv id₁ h₁
+          have v₂ := UF.findReturnsValid eg.uf hv id₂ h₂
+          have aaa := UF.unionLeaderValid eg.uf (lookupCanonicalEClassId eg id₁) (lookupCanonicalEClassId eg id₂) v₁ v₂ hv
+          simpa[←b] using aaa -- does simpa help readability
+        case inr.inr h =>
+          -- have aaa := UF.unionPreservesSize eg.uf (lookupCanonicalEClassId eg id₁) (lookupCanonicalEClassId eg id₂)
+          -- simp[aaa] at *
+          simp[EGraph.aldrtValid] at hAv
+          exact hAv id h
+
+
+  · -- hconsToECMap
+    sorry
 
 theorem repairPreservesAlwaysInvariants [Analysis α D] (eg : EGraph α D)
   (h : eg.alwaysInvariants) (id : EClassId) :
