@@ -145,6 +145,16 @@ def updateParents (ecmap : List <| EClassId × EClass α D) (en : ENode α) (eid
 def lookupCanonicalEClassId (eg : EGraph α D) (id : EClassId) : EClassId :=
   eg.uf.find id
 
+def lookupCanonicalReturnsValid (eg : EGraph α D) (id : EClassId) (hID : eg.uf.isValidID id) (hUF : eg.uf.wellFormed):
+    eg.uf.isValidID (lookupCanonicalEClassId eg id) :=
+  by
+    unfold UF.isValidID
+    simp[lookupCanonicalEClassId]
+    rw[UF.find]
+    have valid := UF.findReturnsValid eg.uf hUF.left id hID
+    exact valid
+
+
 /-
   Canonicalise:
     - Canonicalises a node by replacing the arg ids with their canonical ids
@@ -215,6 +225,7 @@ def union [Analysis α D] (eg : EGraph α D) (id₁ id₂ : EClassId) : EGraph �
     (eg, id₁')
   -- In different class, we do work
   else
+
     -- Update union find
     let (uf', leaderClassId) := eg.uf.union id₁' id₂'
     -- Technically leader is always id₁' here

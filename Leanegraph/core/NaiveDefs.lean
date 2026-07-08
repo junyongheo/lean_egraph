@@ -20,7 +20,16 @@ structure ENode (α : Type _ ) where
   head : α
   args : List EClassId
 deriving Hashable, DecidableEq, Repr
+/-
+inductive Term (α : Type _ ) where
+| term : α → List (Term α) → Term α
+deriving Repr
+-/
 
+structure Term (α : Type _) where
+  head : α
+  args : List (Term α)
+deriving Repr
 /-
   The parents list is a list of ENodes and their (TODO: canonical? only after repair) IDs
 -/

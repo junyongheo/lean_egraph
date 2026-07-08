@@ -3,11 +3,65 @@ import Leanegraph.core.ListAsMaps
 import Leanegraph.core.Naive
 import Leanegraph.core.NaiveDefs
 import Leanegraph.core.SharedDefs
+import Leanegraph.core.MathlibJjajibgi
 
 variable {α : Type _} [DecidableEq α] [Hashable α] [Repr α]
 variable {D : Type _} [DecidableEq D] [Inhabited D]
 
 namespace Naive
+
+/-
+  Helpers
+-/
+def inEClass (eg : EGraph α D) (en : ENode α) (id : EClassId) : Prop :=
+  ∃ ecls, ecmapLookup eg id = some ecls ∧ en ∈ ecls.nodes
+
+
+/-
+  Represented
+-/
+
+mutual
+/-
+def nodeRepresentsTerm (eg : EGraph α D) (en : ENode α) (t : Term α) : Prop :=
+  en.head = t.head ∧ Forall₂ (classRepresentsTerm eg) en.args t.args
+-/
+inductive nodeRepresentsTerm (eg : EGraph α D) : ENode α → Term α → Prop where
+  | node :
+      ∀ (en : ENode α) (t : Term α),
+           en.head = t.head →
+           Forall₂ (classRepresentsTerm eg) en.args t.args →
+           nodeRepresentsTerm eg en t
+
+inductive classRepresentsTerm (eg : EGraph α D) : EClassId → Term α → Prop where
+  | cls :
+      ∀ (id : EClassId) (t : Term α),
+          (en : ENode α) →
+          inEClass eg en id →
+          nodeRepresentsTerm eg en t →
+          classRepresentsTerm eg id t
+end
+
+def egraphRepresentsTerm (eg : EGraph α D) (t : Term α) : Prop :=
+  ∃ id, classRepresentsTerm eg id t
+
+
+/-
+  Equivalences
+-/
+
+def EquivECId (eg : EGraph α D) (id₁ id₂ : EClassId) : Prop :=
+  lookupCanonicalEClassId eg id₁ = lookupCanonicalEClassId eg id₂
+
+def EquivENode (eg : EGraph α D) (en₁ en₂ : ENode α) : Prop :=
+  ∃ id, inEClass eg en₁ id ∧ inEClass eg en₂ id
+
+def EquivTerm (eg : EGraph α D) (t₁ t₂ : Term α) : Prop :=
+  ∃ (id : EClassId),
+    classRepresentsTerm eg id t₁ ∧ classRepresentsTerm eg id t₂
+
+
+
 
 /-
   Props of E-Nodes
@@ -18,16 +72,18 @@ def ENode.isCanonical (en : ENode α) (eg : EGraph α D) : Prop :=
   -- en.args.map (lookupCanonicalEClassId eg) = en.args
   -- should be the same, figure out which one is better
 
--- Two ENodes are congruent if head is equal, all args are in same eclass
-def ENode.isCongruent (en₁ en₂ : ENode α) (eg : EGraph α D) : Prop :=
+-- Two ENodes are congruent if head is equal, all args are in same eclass ≅
+def ENode.congrRel (en₁ en₂ : ENode α) (eg : EGraph α D) : Prop :=
 -- Is there a zip in lean?
 -- https://leanprover-community.github.io/mathlib4_docs/Mathlib/Data/List/Forall2.html This is pretty cool
 -- Oh it's mathlib
 -- Back to zip
   -- en₁.head = en₂.head ∧ (en₁.args.zip en₂.args).all (λ (a, b) ↦ lookupCanonicalEClassId a = lookupCanonicalEClassId b)
+
   en₁.head = en₂.head ∧
-  en₁.args.length = en₂.args.length ∧
-  (en₁.args.zip en₂.args).all (λ (a, b) ↦ lookupCanonicalEClassId eg a = lookupCanonicalEClassId eg b)
+    Forall₂ (λ a b => EquivECId eg a b) en₁.args en₂.args
+  --en₁.args.length = en₂.args.length ∧
+  --(en₁.args.zip en₂.args).all (λ (a, b) ↦ lookupCanonicalEClassId eg a = lookupCanonicalEClassId eg b)
 
 
 
@@ -64,6 +120,78 @@ def EGraph.hconsToEcmap (eg : EGraph α D) : Prop :=
   ∀ en id, hcLookup eg en = some id →
     ∃ cls, ecmapLookup eg (lookupCanonicalEClassId eg id) = some cls
 
+
+
+
+/-
+  Congruence Closure
+
+-- on node equivalence, we want a relation R (EquivENode), two ENodes (feed as args)
+-- within the context of the egraph (feed as arg), which handles eclasses so
+-- only EGraph → ENode → ENode → Prop?
+--
+  From egg (paraphrased): Congruence closure is the smallest superset of ≣node that is
+  also the smallest superset of ≅
+  To build congruence closure therefore we start with both of these as a base relation
+
+-/
+
+/-
+  Try 1:
+-/
+inductive CongruenceClosure (eg : EGraph α D) : ENode α → ENode α → Prop where
+| equiv : (en₁ : ENode α) → (en₂ : ENode α) → EquivENode eg en₁ en₂ →
+            CongruenceClosure eg en₁ en₂
+| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel en₁ en₂ eg →
+            CongruenceClosure eg en₁ en₂
+| refl  : (en  : ENode α) →
+            CongruenceClosure eg en  en
+| symm  : (en₁ : ENode α) → (en₂ : ENode α) → CongruenceClosure eg en₁ en₂ →
+            CongruenceClosure eg en₂ en₁
+| trans : (en₁ : ENode α) → (en₂ : ENode α) → (en₃ : ENode α) → CongruenceClosure eg en₁ en₂ → CongruenceClosure eg en₂ en₃ →
+            CongruenceClosure eg en₁ en₃
+
+/-
+  Try 2:
+-/
+inductive SingleStepOfCongruence (eg : EGraph α D) : ENode α → ENode α → Prop where
+| equiv : (en₁ : ENode α) → (en₂ : ENode α) → EquivENode eg en₁ en₂ →
+            SingleStepOfCongruence eg en₁ en₂
+| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel en₁ en₂ eg →
+            SingleStepOfCongruence eg en₁ en₂
+
+
+inductive CongruenceClosure2 (eg : EGraph α D) : ENode α → ENode α → Prop where
+| refl  : (en          : ENode α) → CongruenceClosure2 eg en en
+| symm  : (en₁ en₂     : ENode α) → CongruenceClosure2 eg en₁ en₂ → CongruenceClosure2 eg en₂ en₁
+| trans : (en₁ en₂ en₃ : ENode α) → CongruenceClosure2 eg en₁ en₂ → CongruenceClosure2 eg en₂ en₃ → CongruenceClosure2 eg en₁ en₃
+
+
+/-
+  Try 3:
+-/
+inductive SingleStepOfCongruence' (eg : EGraph α D) : ENode α → ENode α → Prop where
+| equiv : (en₁ : ENode α) → (en₂ : ENode α) → EquivENode eg en₁ en₂ →
+            SingleStepOfCongruence' eg en₁ en₂
+| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel en₁ en₂ eg →
+            SingleStepOfCongruence' eg en₁ en₂
+-- | refl  : (en  : ENode α) → SingleStepOfCongruence' eg en en -- technically same as CC3.refl
+| symm  : (en₁ : ENode α) → (en₂ : ENode α) → SingleStepOfCongruence' eg en₁ en₂ → SingleStepOfCongruence' eg en₂ en₁
+
+
+
+inductive CongruenceClosure3 (eg : EGraph α D) : ENode α → ENode α → Prop where
+| refl  : (en          : ENode α) → CongruenceClosure3 eg en  en
+| chain : (en₁ en₂ en₃ : ENode α) → CongruenceClosure3 eg en₁ en₂ → SingleStepOfCongruence' eg en₂ en₃ → CongruenceClosure3 eg en₁ en₃
+
+
+/-
+-- doesn't work as well as the above?
+inductive CongruenceClosure (eg : EGraph α D) (en₁ : ENode α) (en₂ : ENode α) : Prop where
+| equiv : EquivENode eg en₁ en₂        → CongruenceClosure eg en₁ en₂
+| congr : ENode.isCongruent en₁ en₂ eg → CongruenceClosure eg en₁ en₂
+| symm  : CongruenceClosure eg en₁ en₂ → CongruenceClosure eg en₂ en₁ -- doesn't work
+-/
 /-
   Define the two main invariants for E-Graphs.
   1. Congruence Invariant
@@ -77,6 +205,8 @@ def EGraph.hconsToEcmap (eg : EGraph α D) : Prop :=
   Bonus: Some analysis invariant?
     ∀𝑐∈𝐺. 𝑑𝑐=Ûmake(𝑛) and modify(𝑐)=𝑐 (copied egg pg.13, idk how to type that, TODO: )
 -/
+
+/-
 def EGraph.congruenceInvariant
     -- (eg : EGraph α D) (en₁ en₂ : ENode α) (id₁ id₂ : EClassId) : Prop := -- no need to specify
     (eg : EGraph α D) : Prop :=
@@ -85,10 +215,18 @@ def EGraph.congruenceInvariant
         eg.hcons.lookup en₂ = some id₂ → -- and id₂ of en₂
         ENode.isCongruent en₁ en₂ eg →  -- and the two nodes are congruent
         lookupCanonicalEClassId eg id₁ = lookupCanonicalEClassId eg id₂ -- the two nodes are in the same e-class
+-/
 
+def EGraph.congruenceInvariant (eg : EGraph α D) : Prop :=
+  ∀ (en₁ en₂ : ENode α),
+    EquivENode eg en₁ en₂ ↔ CongruenceClosure3 eg en₁ en₂
 
-def inEClass (eg : EGraph α D) (en : ENode α) (id : EClassId) : Prop :=
-  ∃ ecls, ecmapLookup eg id = some ecls ∧ en ∈ ecls.nodes
+def EGraph.uniqueContained (eg : EGraph α D) : Prop :=
+  ∀ (en : ENode α) (id₁ id₂ : EClassId),
+    hcLookup eg en = some id₁ →
+    hcLookup eg en = some id₂ →
+    lookupCanonicalEClassId eg id₁ = lookupCanonicalEClassId eg id₂
+
 
 def EGraph.hashconsInvariant (eg : EGraph α D) : Prop :=
   ∀ (en : ENode α) (id : EClassId),
@@ -116,7 +254,32 @@ def EGraph.alwaysInvariants (eg : EGraph α D) : Prop :=
 theorem pushPreservesAlwaysInvariants [Analysis α D] (eg : EGraph α D)
   (h : eg.alwaysInvariants) (en : ENode α) :
     (push eg en).1.alwaysInvariants := by
-  sorry
+  unfold EGraph.alwaysInvariants
+  unfold EGraph.alwaysInvariants at h
+  rcases h with ⟨hUfWf, hDv, hAv, hHcEm⟩
+  rcases hUfWf with ⟨hUfv, hUfc⟩
+  repeat constructor
+  · -- isValid
+    -- show that pushing does not change the validity of the unionfind
+    -- do we not have this already?
+    have isValid := UF.pushPreservesValid _ hUfv
+    unfold push
+    dsimp
+    split
+    ·
+      exact hUfv
+    ·
+      unfold Analysis.modify
+      dsimp[isValid]
+
+
+      sorry
+  · -- isCanon
+    -- show that pushing does not change the canonicity of the unionfind
+    sorry
+  · -- hconsToECmap?
+    sorry
+
 
 theorem unionPreservesAlwaysInvariants [Analysis α D] (eg : EGraph α D)
   (h : eg.alwaysInvariants) (id₁ id₂ : EClassId) :
@@ -196,7 +359,30 @@ theorem egraphCorrect [Analysis α D] (eg : EGraph α D)
     (h : eg.afterRebuildInvariants) (en₁ en₂ : ENode α) (id₁ id₂ : EClassId)
       (h₁ : inEClass eg en₁ id₁) (h₂ : inEClass eg en₂ id₂) :
       -- two nodes are congruent iff same class
-        eg.uf.find id₁ = eg.uf.find id₂ ↔ ENode.isCongruent en₁ en₂ eg := by
+        lookupCanonicalEClassId eg id₁ = lookupCanonicalEClassId eg id₂ ↔ CongruenceClosure3 eg en₁ en₂ := by
   sorry
 
 end Naive
+
+theorem foo : 1 + 1 = 2 := by
+  exact
+  by
+    exact
+    by
+      exact
+      by
+        exact
+        by
+          exact
+          by
+            exact
+            by
+              exact
+              by
+                exact
+                by
+                  exact
+                  by
+                    exact
+                    by
+                      rfl
