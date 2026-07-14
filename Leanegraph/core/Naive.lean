@@ -43,12 +43,6 @@ def insertECMap (ec : ListMap EClassId (EClass α D)) (k : EClassId) (v : EClass
 def EGraph.size (eg : EGraph α D) : Nat :=
   List.length eg.uf
 
-def numCanonClasses (eg : EGraph α D) : Nat :=
-  eg.uf.filter (λ (id, cid) => id == cid) |>.length
-
-def numClasses (eg : EGraph α D) : Nat :=
-  eg.uf.map Prod.snd |>.eraseDups |>.length
-
 /-
   Makes an instance of an EClass, either empty of from a Node
 -/
@@ -290,6 +284,16 @@ def union [Analysis α D] (eg : EGraph α D) (id₁ id₂ : EClassId) : EGraph �
     (eg', leaderClassId)
 
 
+
+def doAnalysisAction [Analysis α D] (eg : EGraph α D) (act : AnalysisAction α) : EGraph α D :=
+match act with
+| AnalysisAction.merge id₁ id₂ =>
+  (union eg id₁ id₂).1
+| AnalysisAction.addMerge en id =>
+  let (newEg, newId) := push eg en
+  (union newEg id newId).1
+
+
 def repairAnalysis [Analysis α D] (eg : EGraph α D) (id : EClassId) : EGraph α D :=
   let canonId := lookupCanonicalEClassId eg id
 
@@ -314,7 +318,9 @@ def repairAnalysis [Analysis α D] (eg : EGraph α D) (id : EClassId) : EGraph �
         aldrt := parentIds ++ eg.aldrt
       }
 
-      Analysis.modify eg' canonId
+      (Analysis.modify eg' canonId).foldl (init := eg') doAnalysisAction
+
+
     else eg
 
 def repairLoop1 (eg : EGraph α D) (eCls : EClass α D) : EGraph α D  × List (EClassId × EClassId) :=
@@ -375,16 +381,35 @@ def repair (eg : EGraph α D) (id : EClassId) : EGraph α D × (List <| EClassId
     (eg'', collisions ++ pc)
 
 
+def numWork (eg : EGraph α D) : Nat :=
+  eg.dirty.length + eg.aldrt.length
+
+def numCanonClasses (eg : EGraph α D) : Nat :=
+  eg.uf.filter (λ (id, cid) => id == cid) |>.length
+
+
 def rebuildTerminationBy (eg : EGraph α D) : Nat × Nat :=
-  let work := eg.dirty.length + eg.aldrt.length
-  let classes := numCanonClasses eg
-  (classes, work)
+  (numCanonClasses eg, numWork eg) -- or numCanonClasses eg?
 
-
+/-
 def mergeCollisions [Analysis α D] (eg : EGraph α D) (collisions : List <| EClassId × EClassId)
     : EGraph α D :=
   collisions.foldl (λ acc (id₁, id₂) =>
     (union acc id₁ id₂).1) eg
+-/
+
+def mergeCollisions [Analysis α D] (eg : EGraph α D) : List (EClassId × EClassId) → EGraph α D
+| [] => eg
+| (id₁, id₂) :: rest =>
+  if lookupCanonicalEClassId eg id₁ = lookupCanonicalEClassId eg id₂
+  then
+    mergeCollisions eg rest
+  else
+    mergeCollisions (union eg id₁ id₂).fst rest
+
+def oneStepRepair [Analysis α D] (eg₁ : EGraph α D) (id : EClassId) : EGraph α D :=
+  let (eg₂, collisions) := repair eg₁ id
+  mergeCollisions eg₂ collisions
 
 def congruenceRepair [Analysis α D] (eg : EGraph α D) : EGraph α D :=
   let todo := eg.dirty.map (lookupCanonicalEClassId eg) |>.eraseDups
@@ -392,9 +417,9 @@ def congruenceRepair [Analysis α D] (eg : EGraph α D) : EGraph α D :=
 
   -- Pass through dirty (congruence repair)
   -- extract the nested loop for readability
-  let eg'' := todo.foldl (λ eg₁ id =>
-    let (eg₂, collisions) := repair eg₁ id
-    mergeCollisions eg₂ collisions
+  -- extract the outer loop too for reasonability
+  let eg'' := todo.foldl (
+    λ eg₁ id => oneStepRepair eg₁ id
   ) eg'
     /-
     collisions.foldl (λ acc (id₁, id₂) =>
@@ -418,38 +443,15 @@ def singleRebuildPass [Analysis α D] (eg : EGraph α D) : EGraph α D :=
   let eg'':= analysisRepair eg'
   eg''
 
-
+-- Due to the length of the termination argument, we move this function to Rebuild.lean
+-- The implementation is left here for reference
+/-
 partial def rebuild [Analysis α D] (eg : EGraph α D) : EGraph α D :=
   if eg.dirty.isEmpty && eg.aldrt.isEmpty then eg
   else
     let eg' := singleRebuildPass eg
     rebuild eg'
-
-
-
-
-/-
-  Exports for outside use
 -/
-abbrev EGraphM (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] := StateM (EGraph α D)
-
-def lookupCanonicalEClassIdM (id : EClassId) : EGraphM α D EClassId := do
-  return lookupCanonicalEClassId (← get) id
-
-def pushM [Analysis α D] (en : ENode α) : EGraphM α D EClassId := do
-  let (eg', id) := push (← get) en
-  let eg'' := Analysis.modify eg' id
-  discard <| set eg''
-  return id
-
-def unionM [Analysis α D] (id₁ id₂ : EClassId) : EGraphM α D EClassId := do
-  let (eg', leader) := union (← get) id₁ id₂
-  set eg'
-  return leader
-
-def rebuildM [Analysis α D] : EGraphM α D Unit := do
-  set (rebuild (← get))
-
 
 
 

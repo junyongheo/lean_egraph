@@ -60,10 +60,14 @@ structure EGraph (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
   Analysis
 -/
 
+inductive AnalysisAction (α : Type _) where
+| merge (id₁ id₂ : EClassId)
+| addMerge (en : ENode α) (id : EClassId)
+
 class Analysis (α : Type _) (D : Type _) [DecidableEq α] [Hashable α] where
   make : (en : ENode α) → List D → D
   join : D → D → D
-  modify : EGraph α D → EClassId → EGraph α D
+  modify : EGraph α D → EClassId → List (AnalysisAction α)
 
 
 
@@ -97,7 +101,7 @@ instance : Inhabited (Analysis α Unit) where
   default := {
     make    _  _ := (),
     join    _  _ := (),
-    modify  eg _ := eg
+    modify  _  _ := []
   }
 
 -- Analysis₂
@@ -107,7 +111,7 @@ instance : Inhabited (Analysis α Unit) where
 instance : Analysis α Unit where
   make _ _ := ()
   join _ _ := ()
-  modify eg _ := eg
+  modify _ _ := []
 
 
 

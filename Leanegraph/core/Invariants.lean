@@ -62,6 +62,15 @@ def EquivTerm (eg : EGraph α D) (t₁ t₂ : Term α) : Prop :=
 
 
 
+def EquivENode' (eg : EGraph α D) (en₁ en₂ : ENode α) : Prop :=
+  ∃ id₁ id₂,
+    hcLookup eg (canonicalise eg en₁) = some id₁ ∧
+    hcLookup eg (canonicalise eg en₂) = some id₂ ∧
+    lookupCanonicalEClassId eg id₁ = lookupCanonicalEClassId eg id₂
+
+
+
+
 
 /-
   Props of E-Nodes
@@ -73,7 +82,7 @@ def ENode.isCanonical (en : ENode α) (eg : EGraph α D) : Prop :=
   -- should be the same, figure out which one is better
 
 -- Two ENodes are congruent if head is equal, all args are in same eclass ≅
-def ENode.congrRel (en₁ en₂ : ENode α) (eg : EGraph α D) : Prop :=
+def ENode.congrRel (eg : EGraph α D) (en₁ en₂ : ENode α)  : Prop :=
 -- Is there a zip in lean?
 -- https://leanprover-community.github.io/mathlib4_docs/Mathlib/Data/List/Forall2.html This is pretty cool
 -- Oh it's mathlib
@@ -142,7 +151,7 @@ def EGraph.hconsToEcmap (eg : EGraph α D) : Prop :=
 inductive CongruenceClosure (eg : EGraph α D) : ENode α → ENode α → Prop where
 | equiv : (en₁ : ENode α) → (en₂ : ENode α) → EquivENode eg en₁ en₂ →
             CongruenceClosure eg en₁ en₂
-| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel en₁ en₂ eg →
+| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel eg en₁ en₂ →
             CongruenceClosure eg en₁ en₂
 | refl  : (en  : ENode α) →
             CongruenceClosure eg en  en
@@ -157,14 +166,14 @@ inductive CongruenceClosure (eg : EGraph α D) : ENode α → ENode α → Prop 
 inductive SingleStepOfCongruence (eg : EGraph α D) : ENode α → ENode α → Prop where
 | equiv : (en₁ : ENode α) → (en₂ : ENode α) → EquivENode eg en₁ en₂ →
             SingleStepOfCongruence eg en₁ en₂
-| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel en₁ en₂ eg →
+| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel eg en₁ en₂ →
             SingleStepOfCongruence eg en₁ en₂
 
 
 inductive CongruenceClosure2 (eg : EGraph α D) : ENode α → ENode α → Prop where
 | refl  : (en          : ENode α) → CongruenceClosure2 eg en en
 | symm  : (en₁ en₂     : ENode α) → CongruenceClosure2 eg en₁ en₂ → CongruenceClosure2 eg en₂ en₁
-| trans : (en₁ en₂ en₃ : ENode α) → CongruenceClosure2 eg en₁ en₂ → CongruenceClosure2 eg en₂ en₃ → CongruenceClosure2 eg en₁ en₃
+| trans : (en₁ en₂ en₃ : ENode α) → CongruenceClosure2 eg en₁ en₂ → SingleStepOfCongruence eg en₂ en₃ → CongruenceClosure2 eg en₁ en₃
 
 
 /-
@@ -173,7 +182,7 @@ inductive CongruenceClosure2 (eg : EGraph α D) : ENode α → ENode α → Prop
 inductive SingleStepOfCongruence' (eg : EGraph α D) : ENode α → ENode α → Prop where
 | equiv : (en₁ : ENode α) → (en₂ : ENode α) → EquivENode eg en₁ en₂ →
             SingleStepOfCongruence' eg en₁ en₂
-| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel en₁ en₂ eg →
+| struc : (en₁ : ENode α) → (en₂ : ENode α) → ENode.congrRel eg en₁ en₂ →
             SingleStepOfCongruence' eg en₁ en₂
 -- | refl  : (en  : ENode α) → SingleStepOfCongruence' eg en en -- technically same as CC3.refl
 | symm  : (en₁ : ENode α) → (en₂ : ENode α) → SingleStepOfCongruence' eg en₁ en₂ → SingleStepOfCongruence' eg en₂ en₁
