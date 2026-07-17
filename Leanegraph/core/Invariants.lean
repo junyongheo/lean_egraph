@@ -130,7 +130,30 @@ def EGraph.hconsToEcmap (eg : EGraph α D) : Prop :=
     ∃ cls, ecmapLookup eg (lookupCanonicalEClassId eg id) = some cls
 
 
+-- parents of entry in ecmap is all valid IDs
+def EGraph.ecmapParentsValid (eg : EGraph α D) : Prop :=
+  ∀ id cls, eg.ecmap.lookup id = some cls →
+    ∀ p ∈ cls.parents, eg.uf.isValidID p.2
 
+-- everything in hcons is all valid IDs
+def EGraph.hconsValidity (eg : EGraph α D) : Prop :=
+  ∀ node id, eg.hcons.lookup node = some id → eg.uf.isValidID id
+
+
+-- Invariants that must always hold
+def EGraph.alwaysInvariants (eg : EGraph α D) : Prop :=
+  UF.wellFormed eg.uf ∧ -- all IDs are valid and is flat
+  -- ecmap/hcons has unique keys, but that is from subtype, not mentioned here
+  -- still keep that in mind, probably need
+  eg.dirtyValid ∧
+  eg.aldrtValid ∧
+  eg.hconsToEcmap ∧
+  -- i think this is about it?
+  -- hcons can go stale, ecmap can go stale
+  -- uf is i think always valid?
+  -- added extra ones to show that the hcons and ecmap have valid ids
+  eg.hconsValidity ∧
+  eg.ecmapParentsValid
 
 /-
   Congruence Closure
@@ -148,6 +171,7 @@ def EGraph.hconsToEcmap (eg : EGraph α D) : Prop :=
 /-
   Try 1:
 -/
+/-
 inductive CongruenceClosure (eg : EGraph α D) : ENode α → ENode α → Prop where
 | equiv : (en₁ : ENode α) → (en₂ : ENode α) → EquivENode eg en₁ en₂ →
             CongruenceClosure eg en₁ en₂
@@ -159,7 +183,7 @@ inductive CongruenceClosure (eg : EGraph α D) : ENode α → ENode α → Prop 
             CongruenceClosure eg en₂ en₁
 | trans : (en₁ : ENode α) → (en₂ : ENode α) → (en₃ : ENode α) → CongruenceClosure eg en₁ en₂ → CongruenceClosure eg en₂ en₃ →
             CongruenceClosure eg en₁ en₃
-
+-/
 /-
   Try 2:
 -/
@@ -170,15 +194,16 @@ inductive SingleStepOfCongruence (eg : EGraph α D) : ENode α → ENode α → 
             SingleStepOfCongruence eg en₁ en₂
 
 
-inductive CongruenceClosure2 (eg : EGraph α D) : ENode α → ENode α → Prop where
-| refl  : (en          : ENode α) → CongruenceClosure2 eg en en
-| symm  : (en₁ en₂     : ENode α) → CongruenceClosure2 eg en₁ en₂ → CongruenceClosure2 eg en₂ en₁
-| trans : (en₁ en₂ en₃ : ENode α) → CongruenceClosure2 eg en₁ en₂ → SingleStepOfCongruence eg en₂ en₃ → CongruenceClosure2 eg en₁ en₃
+inductive CongruenceClosure (eg : EGraph α D) : ENode α → ENode α → Prop where
+| refl  : (en          : ENode α) → CongruenceClosure eg en en
+| symm  : (en₁ en₂     : ENode α) → CongruenceClosure eg en₁ en₂ → CongruenceClosure eg en₂ en₁
+| trans : (en₁ en₂ en₃ : ENode α) → CongruenceClosure eg en₁ en₂ → SingleStepOfCongruence eg en₂ en₃ → CongruenceClosure eg en₁ en₃
 
 
 /-
   Try 3:
 -/
+/-
 inductive SingleStepOfCongruence' (eg : EGraph α D) : ENode α → ENode α → Prop where
 | equiv : (en₁ : ENode α) → (en₂ : ENode α) → EquivENode eg en₁ en₂ →
             SingleStepOfCongruence' eg en₁ en₂
@@ -192,7 +217,7 @@ inductive SingleStepOfCongruence' (eg : EGraph α D) : ENode α → ENode α →
 inductive CongruenceClosure3 (eg : EGraph α D) : ENode α → ENode α → Prop where
 | refl  : (en          : ENode α) → CongruenceClosure3 eg en  en
 | chain : (en₁ en₂ en₃ : ENode α) → CongruenceClosure3 eg en₁ en₂ → SingleStepOfCongruence' eg en₂ en₃ → CongruenceClosure3 eg en₁ en₃
-
+-/
 
 /-
 -- doesn't work as well as the above?
@@ -228,7 +253,7 @@ def EGraph.congruenceInvariant
 
 def EGraph.congruenceInvariant (eg : EGraph α D) : Prop :=
   ∀ (en₁ en₂ : ENode α),
-    EquivENode eg en₁ en₂ ↔ CongruenceClosure3 eg en₁ en₂
+    EquivENode eg en₁ en₂ ↔ CongruenceClosure eg en₁ en₂
 
 def EGraph.uniqueContained (eg : EGraph α D) : Prop :=
   ∀ (en : ENode α) (id₁ id₂ : EClassId),
@@ -246,16 +271,3 @@ def EGraph.hashconsInvariant (eg : EGraph α D) : Prop :=
     hcLookup eg (canonicalise eg en) = lookupCanonicalEClassId eg id
 -- huh doesn't this imply the congruenceInvariant? In the ← direction?
 -- TODO: go for this one first, I think?
-
-
--- Invariants that must always hold
-def EGraph.alwaysInvariants (eg : EGraph α D) : Prop :=
-  UF.wellFormed eg.uf ∧ -- all IDs are valid and is flat
-  -- ecmap/hcons has unique keys, but that is from subtype, not mentioned here
-  -- still keep that in mind, probably need
-  eg.dirtyValid ∧
-  eg.aldrtValid ∧
-  eg.hconsToEcmap
-  -- i think this is about it?
-  -- hcons can go stale, ecmap can go stale
-  -- uf is i think always valid?

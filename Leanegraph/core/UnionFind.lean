@@ -94,6 +94,17 @@ def UF.wellFormed (uf : UF) : Prop :=
   uf.isValid ∧ uf.isCanon ∧ uf.hasRep ∧ uf.isComplete ∧ uf.uniqueKeys
 
 
+theorem UF.pushReturnsValidID (uf : UF) :
+    let (newUf, newId) := uf.push; newUf.isValidID newId := by
+  simp[push, UF.size, isValidID]
+
+theorem UF.pushPreservesValidID (uf : UF) (id : EClassId) (h : uf.isValidID id) :
+    uf.push.fst.isValidID id := by
+  simp[isValidID, push]
+  simp[isValidID] at h
+  simp[size]
+  simp[size] at h
+  exact Nat.lt_add_one_of_lt h
 
 
 theorem UF.pushIsCanon (uf : UF) :
@@ -587,6 +598,15 @@ theorem unionPreservesFst (uf : UF) (id₁ id₂ : EClassId) :
     have rw := changeLeaderPreservesFst uf id₁ id₂ (a,b)
     simp[rw]
 
+theorem unionOfCanonsReturnsFirstArg (uf : UF) (id₁ id₂ : EClassId) (h : uf.isCanon):
+    (uf.union (uf.find id₁) (uf.find id₂)).snd = (uf.find id₁) := by
+  simp[UF.union]
+  simp[UF.findIdempotent uf h id₁, UF.findIdempotent uf h id₂]
+  split
+  case isTrue h =>
+    simp
+  case isFalse h =>
+    simp
 /-
   EveryKeyPresent
 -/

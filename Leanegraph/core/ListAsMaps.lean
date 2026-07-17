@@ -206,6 +206,18 @@ def ListMap.map {γ : Type _} (xs : ListMap α β) (f : α → β → γ) : List
 
   ⟩
 
+def ListMap.normalMap {γ : Type _} (xs : ListMap α β) (f : β → γ) : ListMap α γ :=
+  ⟨
+    xs.val.map (λ (k, v) => (k , f v)),
+    by
+      have mapNoTouchKeys (xs : List (α × β)) (f : β → γ) :
+        (xs.map (fun (k, v) => (k, f v))).map Prod.fst = xs.map Prod.fst := by
+        simp
+      unfold KeysUnique
+      rw[mapNoTouchKeys xs.val f]
+      exact xs.property
+  ⟩
+
 
 -- Should this be a prop?
 def ListMap.contains (map : ListMap α β) (k : α) : Bool :=
@@ -215,9 +227,83 @@ def ListMap.notContains (map : ListMap α β) (k : α) : Prop :=
   map.val.all (λ (k', _) => k != k')
 
 
+theorem ListMap.lookupAfterInsert (map : ListMap α β) (k : α) (v : β)
+    : (ListMap.insert k v map).lookup k = some v := by
+  simp[insert]
+  simp[uniqueInsert]
+  simp[lookup]
+  -- huh that was fast
+
+-- List.lookup k' (List.filter (fun p => p.fst != k) map.val) = List.lookup k' map.val
+-- need this helper lemma, lookup after filtering different key no change niks
+theorem lookupFilterNE (l : List (α × β)) (k k' : α) (h : k ≠ k') :
+    List.lookup k' (l.filter (fun p => p.fst != k)) = List.lookup k' l := by
+  induction l with
+  | nil => rfl
+  | cons x xs ih =>
+    simp[List.lookup, List.filter]
+    by_cases heq : x.fst = k
+    case pos =>
+      simp[heq]
+      have neq : ¬k' == k := by simp at h; simp; exact Ne.symm h
+      simpa[neq] using ih
+    case neg =>
+      have neq : x.fst != k := by simp[heq]
+      simp[neq]
+      simp[List.lookup]
+      split
+      case h_1 a =>
+        simp
+      case h_2 _ hk'eq =>
+        exact ih
+
+-- what is the first variable supposed to be??
+    /-
+    split
+    case h_1 p1 heq =>
+
+      have pls : ¬(k' == x.fst) := by
+        have pls' : k != x.fst := by
+          simp at heq
+          simp
+          intro ok
+          exact heq ok.symm
 
 
 
+
+
+      sorry
+    case h_2 p1 hnq =>
+
+      sorry
+    -/
+
+theorem ListMap.lookupAFterInsert' (map : ListMap α β) (k k' : α) (v : β) :
+    (map.insert k v).lookup k' = if k' = k then some v else map.lookup k' := by
+  simp[insert]
+  simp[uniqueInsert]
+  simp[lookup]
+  split
+  case isTrue h =>
+    simp[h]
+  case isFalse h =>
+    simp[List.lookup]
+    have neq : ¬(k' == k) := by simp[h] -- [beq_iff_eq] says simp?, maybe useful
+    simp[neq]
+    have nq : k ≠ k' := by simp[Ne.symm h]
+    exact lookupFilterNE map.val k k' nq
+
+theorem ListMap.lookupAfterInsertNE (map : ListMap α β) (k : α) (v : β) (k' : α) (h : k' ≠ k)
+    : (map.insert k v).lookup k' = map.lookup k' := by
+  rw[ListMap.lookupAFterInsert']
+  simp[h]
+  /-
+  simp[insert]
+  simp[uniqueInsert]
+  simp[lookup]
+  have aa := lookupFilterNE map.val k k' h.symm
+  -/
 
 
 
